@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import shutil
 import tempfile
 import _paths as P  # noqa: E402  (shared location-independent paths)
 
@@ -14,13 +15,16 @@ from wfjobs import parse_jobs  # noqa: E402
 REPO = P.ROOT
 WF = os.path.join(REPO, ".github", "workflows", "pr-guard.yml")
 BASH = P.BASH
-CURL = os.path.join(os.environ["SystemRoot"], "System32", "curl.exe")
+# Portable: SystemRoot only exists on Windows, and the ubuntu runner has curl
+# on PATH. A hardcoded Windows path raised KeyError: 'SystemRoot' in CI.
+CURL = shutil.which("curl") or os.path.join(
+    os.environ.get("SystemRoot", "C:/Windows"), "System32", "curl.exe")
 TOKEN = open(os.path.join(os.environ["USERPROFILE"], ".config", "dsh", "token.txt"),
              encoding="ascii").read().strip()
 B = "https://api.github.com/repos/2847181243-ops/bloodborne-seamless-coop"
 
 # real PR #6 body
-tmp = os.path.join(os.environ["TEMP"], "p6real.json")
+tmp = os.path.join(tempfile.gettempdir(), "p6real.json")
 subprocess.run([CURL, "-sS", "--max-time", "40", "-H",
                 f"Authorization: Bearer {TOKEN}", "-H", "User-Agent: preci",
                 "-H", "Accept: application/vnd.github+json", "-o", tmp,

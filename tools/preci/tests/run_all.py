@@ -25,8 +25,8 @@ import _paths as P  # noqa: E402
 # `needs` names a capability the suite cannot run without; when absent the suite is
 # SKIPPED and counted as unverified rather than silently treated as passing.
 SUITES = [
-    ("test_preci_negative", "本地预检 · 负例矩阵", None),
-    ("test_level_fix", "验证等级判定", None),
+    ("test_preci_negative", "本地预检 · 负例矩阵", "powershell"),
+    ("test_level_fix", "验证等级判定", "powershell"),
     ("test_build_std", "编译标准防削弱", None),
     ("test_pg_strict", "PR 描述严格矩阵", None),
     ("test_bp2", "分支与写入范围矩阵", None),
@@ -43,6 +43,9 @@ def have(cap):
     if cap == "bash":
         ok = os.path.isfile(P.BASH)
         return ok, "" if ok else f"找不到 bash（试过 {P.BASH}）"
+    if cap == "powershell":
+        host = P._find_powershell()
+        return bool(host), "" if host else "找不到 PowerShell（powershell.exe 与 pwsh 都没有）"
     if cap == "yaml":
         try:
             import yaml  # noqa: F401

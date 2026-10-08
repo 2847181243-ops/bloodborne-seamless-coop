@@ -21,8 +21,10 @@ REPO = P.ROOT
 # Allow testing the workflow from another ref (e.g. the unmerged strict-pr-guard
 # branch), because the machine-check step only exists there.
 REF = os.environ.get("PR_GUARD_REF", "")
+# Portability: TEMP is unset on Linux; tempfile.gettempdir() works everywhere.
 if REF:
-    WORKFLOW = os.path.join(os.environ["TEMP"], "prguard-" + REF.replace("/", "_") + ".yml")
+    WORKFLOW = os.path.join(tempfile.gettempdir(),
+                            "prguard-" + REF.replace("/", "_") + ".yml")
     _r = subprocess.run(["git", "-C", REPO, "show", REF + ":.github/workflows/pr-guard.yml"],
                         capture_output=True, text=True, encoding="utf-8", errors="replace")
     if _r.returncode != 0:

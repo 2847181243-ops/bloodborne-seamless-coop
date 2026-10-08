@@ -39,9 +39,37 @@ def read(path_parts, encoding="utf-8"):
     return open(path(*path_parts), encoding=encoding).read()
 
 
+def _find_powershell():
+    """Locate a PowerShell host portably.
+
+    Three suites drive tools/preci/preci.ps1 and used to hardcode `powershell.exe`.
+    On the ubuntu runner that fails with
+        FileNotFoundError: [Errno 2] No such file or directory: 'powershell.exe'
+    Try Windows PowerShell first (preci.ps1 targets 5.1), then PowerShell 7 (`pwsh`),
+    which is preinstalled on GitHub's ubuntu images.
+    """
+    import shutil
+    for name in ("powershell.exe", "powershell", "pwsh"):
+        found = shutil.which(name)
+        if found:
+            return found
+    for p in (r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+              "/usr/bin/pwsh", "/usr/local/bin/pwsh", "/opt/microsoft/powershell/7/pwsh"):
+        if os.path.isfile(p):
+            return p
+    return None
+
+
 def run_ps(args, timeout=None):
-    """Run preci.ps1 / any PowerShell script and return (rc, output)."""
-    cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass"] + list(args)
+    """Run a PowerShell script and return (rc, output).
+
+    Returns (None, reason) when no PowerShell host exists, so a caller can report
+    SKIPPED rather than crashing with a confusing traceback.
+    """
+    host = _find_powershell()
+    if not host:
+        return None, "找不到 PowerShell（powershell.exe 与 pwsh 都没有）"
+    cmd = [host, "-NoProfile", "-ExecutionPolicy", "Bypass"] + list(args)
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=timeout, cwd=ROOT)
     return r.returncode, (r.stdout or "") + (r.stderr or "")

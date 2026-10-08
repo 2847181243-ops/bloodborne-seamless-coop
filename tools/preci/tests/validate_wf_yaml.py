@@ -12,9 +12,10 @@ behaviour):
 """
 import os
 import sys
+import tempfile
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-_local_yaml = os.path.join(os.environ.get("TEMP", "/tmp"), "pyyaml")
+_local_yaml = os.path.join(tempfile.gettempdir(), "pyyaml")
 if os.path.isdir(_local_yaml):
     sys.path.insert(0, _local_yaml)  # optional local PyYAML, absent on CI
 import yaml  # noqa: E402
