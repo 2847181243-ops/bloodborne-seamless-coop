@@ -49,11 +49,18 @@ jobs:
   # 单一 job，**始终运行**，因此 check 上下文名恒定：无需在「有没有 CMakeLists」
   # 两种状态下切换必需检查项。
   #
-  # ⚠️ 不要改回「两个互斥 job」的写法（历史坑）：原实现用
-  #    name: Windows MSVC x64        （有代码时运行）
-  #    name: 构建门禁（无代码时占位）（无代码时运行）
-  #    两个 job 名互斥且都受 if: 控制。分支保护里无论把哪个设为必需，
-  #    另一种状态下该上下文**永不出现**，PR 永久 pending（死锁）。
+  # ⚠️ 不要改回「两个互斥 job」的写法（历史坑）。原实现为：
+  #      name: Windows MSVC x64          （有 CMakeLists.txt 时运行）
+  #      name: 构建门禁（无代码时占位）  （无代码时运行）
+  #    两个 job 名互斥。设为必需检查后会出现两种坏情况：
+  #      * 必需的是**当前不会运行**的那个 job → 该上下文一直没有报告，
+  #        分支保护停在 "Expected — Waiting for status to be reported"；
+  #      * 必需的是**被 if: 跳过**的那个 job → 按 GitHub 文档，被条件跳过的 job
+  #        会报告 Success，等于门禁被静默绕过。
+  #    （注意区分：真正会「永远 Pending」的是被 **path/branch 过滤** 掉、
+  #      整个 workflow 不触发的情况 —— 例如本仓库 labels.yml 的 paths 过滤，
+  #      以及 issue-triage.yml 使用 issues 事件，二者都不能作为必需检查。）
+  #    合并为单一恒定上下文即可同时规避这两点。
   # ─────────────────────────────────────────────────────────────────────────
   build:
     name: 构建门禁（Windows MSVC x64）

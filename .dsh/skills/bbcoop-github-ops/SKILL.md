@@ -54,10 +54,19 @@ PR 模板必填章节               pr-guard.yml
 构建门禁（Windows MSVC x64）  build.yml
 ```
 
-⚠️ **绝对不要**把 `build.yml` 的构建步骤拆成两个互斥 job（历史坑）：曾经写成
+⚠️ **不要**把 `build.yml` 的构建拆成两个 `if:` 互斥的 job（历史坑）：曾经写成
 `Windows MSVC x64`（有代码时）与 `构建门禁（无代码时占位）`（无代码时）两个
-`if:` 互斥的 job，结果无论把哪个设为必需，另一种状态下该上下文**永不出现**，
-PR 永久 pending。现在已统一为单一 job，名恒定为 `构建门禁（Windows MSVC x64）`。
+`if:` 互斥的 job，设为必需检查后有两种坏情况——必需的是当前不运行的那个 job
+时，上下文一直没有报告，分支保护停在 "Expected — Waiting for status to be
+reported"；必需的是被 `if:` 跳过的那个 job 时，按 GitHub 文档被条件跳过的 job
+**报告 Success**，等于门禁被静默绕过。现已统一为单一 job，名恒定为
+`构建门禁（Windows MSVC x64）`。
+
+⚠️ **真正会「永远 Pending」的是被路径/分支过滤掉、整个 workflow 不触发的情况。**
+因此以下上下文**不能**作为必需检查：`同步标签`（`labels.yml` 有 `paths` 过滤）、
+`自动标注`（`issue-triage.yml` 用 `issues` 事件，不属于可用触发类型）、
+`open-pr`（`open-fix-pr.yml` 有 `paths` 过滤）。<https://docs.github.com/en/actions/concepts/security/github_token> 另见
+Mergify 对 path filter 与 CI 门禁差异的说明：<https://mergify.com/blog/path-filters-are-not-a-ci-gate>。
 
 ⚠️ `contexts` 必须与 job 的 `name:` 完全一致（含全角括号）。改过 workflow 的
 `name` 后要回来同步，否则状态检查永远 pending。
