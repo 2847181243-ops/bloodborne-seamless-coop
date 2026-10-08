@@ -45,7 +45,9 @@ jobs:
           # 注意：.dsh/ 归 AI-00（见 .dsh/README.md：「.dsh/ 不参与所有权映射，默认归 AI-00 维护」）。
           # 曾经遗漏：任何 lead/* PR 只要触碰 .dsh/** 就会被本门禁判越界（exit 1）。
           declare -A SCOPE=(
-            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ .github/ .dsh/ docs/README.md README.md CONTRIBUTING.md SECURITY.md bloodbrone.markdown .gitignore .gitattributes .editorconfig"
+            # tools/preci/ 是 AI-00 的本地预检与门禁基础设施（与 .github/ 同类，
+            # 属 CI 基础设施）。遗漏它会让任何 lead/* PR 触碰它都被判越界。
+            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ .github/ .dsh/ tools/preci/ docs/README.md README.md CONTRIBUTING.md SECURITY.md bloodbrone.markdown .gitignore .gitattributes .editorconfig"
             [a0]="mod/platform/"
             [a1]="docs/re/ mod/core/"
             [a2]="mod/session/ mod/replication/"
