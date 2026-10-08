@@ -79,6 +79,26 @@ stage1_pre_push:
     what: diff 新增行中不含凭据 / 私钥特征
     source: .github/workflows/pr-guard.yml
 
+  - id: style
+    name: 代码规范与注释纪律
+    context: (暂无 CI 上下文；本地阶段 1 执行)
+    workflow: (local)
+    local: true
+    what: |
+      1) .editorconfig 合规：末尾换行、换行符、行尾空白、缩进、行宽 120。
+         该文件早已存在，但此前**没有任何门禁执行它**。
+      2) 注释纪律：任务书 §38（bloodbrone.markdown:1160）原文
+         「禁止…为了消除报错而大面积注释代码」—— 注释掉的代码用启发式检出，
+         零星只告警，成片（单文件 ≥15 行或连续 ≥5 行）判失败。
+      3) 源文件必须有文件头注释（用途与所有者），否则所有权会静默腐烂。
+    source: tools/preci/check_style.py；依据 .editorconfig + bloodbrone.markdown:1160
+    note: |
+      扫描 git blob（HEAD），不扫工作区。实测两个假红陷阱：
+        * 扫工作区：本仓 git ls-files --eol 报 w/crlf，产生上千个 CI 永不出现的假红；
+        * 用 git archive：它会套用 .gitattributes 的导出过滤器，把 LF 导出成 CRLF
+          （实测 5441 个假错）。
+      只有 git cat-file --batch 拿到的是提交里真正的字节。
+
 # ── 阶段 2：开 PR 后、请求合并前必须全绿（依赖 PR 元数据 / API）────────────
 stage2_pre_merge:
   - id: pr_sections

@@ -113,8 +113,16 @@ function Write-Head([string]$t) {
     Write-Host ('-' * 74) -ForegroundColor DarkGray
 }
 function Write-Ok([string]$t)   { Write-Host "  [PASS] $t" -ForegroundColor Green;  $script:Pass++ }
-function Write-Bad([string]$t)  { Write-Host "  [FAIL] $t" -ForegroundColor Red;    $script:Fail++;  [void]$script:Failed.Add($t) }
-function Write-Skip([string]$t) { Write-Host "  [SKIP] $t" -ForegroundColor Yellow; $script:Skip++;  [void]$script:Unverified.Add($t) }
+function Write-Bad([string]$t) {
+    Write-Host "  [FAIL] $t" -ForegroundColor Red
+    $script:Fail++
+    [void]$script:Failed.Add($t)
+}
+function Write-Skip([string]$t) {
+    Write-Host "  [SKIP] $t" -ForegroundColor Yellow
+    $script:Skip++
+    [void]$script:Unverified.Add($t)
+}
 function Write-Info([string]$t) { Write-Host "         $t" -ForegroundColor DarkGray }
 
 # ---- helpers ----------------------------------------------------------------
@@ -222,7 +230,9 @@ function Get-RunBodies {
 Write-Host ''
 Write-Host ('  ' + (M 'title')) -ForegroundColor White
 Write-Host ('  ' + (M 'repo') + ': ' + $script:Root)
-Write-Host ('  ' + (M 'stage') + ': ' + $Stage + '    ' + (M 'base') + ': ' + $Base + '    ' + (M 'branch') + ': ' + (Get-HeadRef))
+$curRef = Get-HeadRef
+Write-Host ('  ' + (M 'stage') + ': ' + $Stage + '    ' + (M 'base') + ': ' + $Base)
+Write-Host ('  ' + (M 'branch') + ': ' + $curRef)
 Write-Host ('  HEAD ' + (git rev-parse --short HEAD 2>$null))
 
 $changed = Get-ChangedFiles
@@ -475,7 +485,10 @@ exit $fail
 
     Write-Head (M 'check_secrets')
     $sec = @'
-pat='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|gho_[A-Za-z0-9]{20,}|ghs_[A-Za-z0-9]{20,}|-----BEGIN[A-Z ]*PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,}'
+pat='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}'
+pat="$pat|gho_[A-Za-z0-9]{20,}|ghs_[A-Za-z0-9]{20,}"
+pat="$pat|-----BEGIN[A-Z ]*PRIVATE KEY-----"
+pat="$pat|xox[baprs]-[A-Za-z0-9-]{10,}"
 hits=$(git diff "origin/main...HEAD" 2>/dev/null | grep -E '^\+' | grep -vE '^\+\+\+' | grep -nE "$pat" || true)
 if [ -n "$hits" ]; then
   echo "$hits" | head -5
@@ -485,6 +498,37 @@ echo "SEC_OK"
 '@
     $r = Invoke-Bash $sec
     if ($r.Ok) { Write-Ok (M 'sec_ok') } else { Write-Bad (M 'sec_bad' @($r.Out)) }
+
+    Write-Head (M 'check_style')
+    # Enforces .editorconfig (which existed but nothing checked) and the task
+    # book's comment rule: bloodbrone.markdown:1160 forbids mass-commenting code
+    # to silence errors. Scans the COMMITTED BLOBs, not the working tree -- see
+    # check_style.py's docstring for the two false-positive traps that caused.
+    $pyStyle = $null
+    foreach ($cand in @('python', 'python3', 'py')) {
+        $c = Get-Command $cand -ErrorAction SilentlyContinue
+        if ($c) { $pyStyle = $c.Source; break }
+    }
+    $styleScript = Join-Path $PSScriptRoot 'check_style.py'
+    if (-not $pyStyle -or -not (Test-Path $styleScript)) {
+        Write-Skip (M 'style_skip')
+    } else {
+        $sout = (& $pyStyle $styleScript --repo $script:Root 2>&1 | Out-String)
+        $scode = $LASTEXITCODE
+        $nfiles = 0
+        if ($sout -match 'scanned\s+(\d+)') { $nfiles = [int]$Matches[1] }
+        if ($scode -eq 0) {
+            Write-Ok (M 'style_ok' @($nfiles))
+            $warns = (($sout.Trim() -split "`n") | Where-Object { $_ -match '^\s*~ ' })
+            if ($warns) { Write-Info (M 'style_warn' @([string]$warns.Count)) }
+        } else {
+            $first = (($sout.Trim() -split "`n") | Where-Object { $_ -match '^\s*! ' } |
+                      Select-Object -First 6) -join ' ; '
+            $nerr = 0
+            if ($sout -match 'errors=(\d+)') { $nerr = [int]$Matches[1] }
+            Write-Bad (M 'style_bad' @([string]$nerr + " error(s)") )
+        }
+    }
 
     Write-Head (M 'check_build')
     $cml = Join-Path $script:Root 'CMakeLists.txt'
@@ -598,7 +642,8 @@ if ($Stage -ge 2) {
         for ($i = 0; $i -lt $tpl.Count -and $i -lt 2; $i++) {
             $nm = $names[$i]
             if (-not $bash) { Write-Skip (M 's2_nobash' @($nm)); continue }
-            $tmp = Join-Path ([IO.Path]::GetTempPath()) ('preci-s2-' + $i + '-' + [guid]::NewGuid().ToString('N') + '.sh')
+            $s2name = 'preci-s2-' + $i + '-' + [guid]::NewGuid().ToString('N') + '.sh'
+            $tmp = Join-Path ([IO.Path]::GetTempPath()) $s2name
             [IO.File]::WriteAllText($tmp, ($pre + $tpl[$i]), (New-Object Text.UTF8Encoding($false)))
             $out = & $bash $tmp 2>&1 | Out-String
             $code = $LASTEXITCODE
