@@ -45,22 +45,42 @@ jobs:
             echo "::notice::仓库尚无 CMakeLists.txt（Phase 0 / Phase 1 尚未产出可编译代码），跳过构建。"
           fi
 
-  windows:
-    name: Windows MSVC x64
+  # ─────────────────────────────────────────────────────────────────────────
+  # 单一 job，**始终运行**，因此 check 上下文名恒定：无需在「有没有 CMakeLists」
+  # 两种状态下切换必需检查项。
+  #
+  # ⚠️ 不要改回「两个互斥 job」的写法（历史坑）：原实现用
+  #    name: Windows MSVC x64        （有代码时运行）
+  #    name: 构建门禁（无代码时占位）（无代码时运行）
+  #    两个 job 名互斥且都受 if: 控制。分支保护里无论把哪个设为必需，
+  #    另一种状态下该上下文**永不出现**，PR 永久 pending（死锁）。
+  # ─────────────────────────────────────────────────────────────────────────
+  build:
+    name: 构建门禁（Windows MSVC x64）
     needs: detect
-    if: needs.detect.outputs.has_cmake == 'true'
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 无代码时：明确说明按通过处理，且**不静默**。
+      - name: 无代码时的说明
+        if: needs.detect.outputs.has_cmake != 'true'
+        shell: bash
+        run: |
+          echo "::notice::仓库尚无 CMakeLists.txt（Phase 0 / Phase 1 尚未产出可编译代码），构建门禁按通过处理。"
+          echo "Build Passed ≠ Feature Complete（任务书 §39）。"
+
       - name: 配置
+        if: needs.detect.outputs.has_cmake == 'true'
         run: cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release
 
       - name: 编译
+        if: needs.detect.outputs.has_cmake == 'true'
         run: cmake --build build --config Release --parallel
 
       - name: 上传产物
+        if: needs.detect.outputs.has_cmake == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: mod-windows-x64
@@ -70,13 +90,3 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  placeholder:
-    name: 构建门禁（无代码时占位）
-    needs: detect
-    if: needs.detect.outputs.has_cmake != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: 说明
-        run: |
-          echo "::notice::当前没有可编译的代码，构建门禁按通过处理。"
-          echo "Build Passed ≠ Feature Complete（任务书 §39）。"

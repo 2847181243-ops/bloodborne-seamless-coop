@@ -34,37 +34,36 @@ description: 本仓库的 GitHub 自动化运维手册——标签唯一来源�
 
 ---
 
-## 3. 分支保护（推送后立刻配）
+## 3. 分支保护 / 规则集（推送后立刻配）
 
-```bash
-gh api -X PUT "repos/$OWNER/$REPO/branches/main/protection" \
-  -H "Accept: application/vnd.github+json" --input - <<'JSON'
-{
-  "required_status_checks": {
-    "strict": true,
-    "contexts": [
-      "必需文件与目录结构",
-      "分支命名与写入范围",
-      "PR 模板必填章节",
-      "安全审计门禁（一票否决）",
-      "构建门禁（无代码时占位）"
-    ]
-  },
-  "enforce_admins": true,
-  "required_pull_request_reviews": {
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": true,
-    "required_approving_review_count": 1
-  },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false,
-  "required_conversation_resolution": true
-}
-JSON
+> **优先用 Rulesets**（Settings → Rules → Rulesets），因为 **Copilot code review
+> 只能作为 ruleset 规则自动触发**；经典分支保护的 `/branches/main/protection` 不支持它。
+> 两者可以并存，同时存在时取更严格者。若走 UI/API 建规则集，**本步骤需要
+> `administration:write` 权限**，deploy key（只能读写 git 对象）做不到。
+>
+> 注意：本仓库**当前 0 个规则集、分支保护状态未验证**（查询见下）。
+
+### 必须设为必需的检查上下文（与 job `name:` 逐字一致）
+
+```text
+必需文件与目录结构            docs-structure.yml
+分支命名与写入范围            branch-policy.yml
+PR 模板必填章节               pr-guard.yml
+安全审计门禁（一票否决）      pr-guard.yml
+文件编码与 CODEOWNERS 完整性  repo-integrity.yml
+构建门禁（Windows MSVC x64）  build.yml
 ```
 
-⚠️ `contexts` 必须与 job 的 `name:` 完全一致。改过 workflow 的 `name` 后要回来同步，否则状态检查永远 pending。
+⚠️ **绝对不要**把 `build.yml` 的构建步骤拆成两个互斥 job（历史坑）：曾经写成
+`Windows MSVC x64`（有代码时）与 `构建门禁（无代码时占位）`（无代码时）两个
+`if:` 互斥的 job，结果无论把哪个设为必需，另一种状态下该上下文**永不出现**，
+PR 永久 pending。现在已统一为单一 job，名恒定为 `构建门禁（Windows MSVC x64）`。
+
+⚠️ `contexts` 必须与 job 的 `name:` 完全一致（含全角括号）。改过 workflow 的
+`name` 后要回来同步，否则状态检查永远 pending。
+
+⚠️ `require_code_owner_reviews: true` 与**单账号 CODEOWNERS** 组合会让唯一的仓库
+账号无法合并自己开的 PR（GitHub 不允许自审）。要么加第二个协作者，要么先不开这一项。
 另建议在仓库设置里勾选 **Allow auto-merge** 与 **Automatically delete head branches**。
 
 ---
@@ -91,6 +90,35 @@ gh run list --limit 20
 gh run view <run-id> --log-failed
 gh workflow run labels.yml
 ```
+
+### ⚠️ 本机 HTTPS 走 `api.github.com` 会被 Steam++ 中间人（必读）
+
+本机 `hosts` 把 `github.com` / `api.github.com` 指向 `127.0.0.1`，而
+`Steam++.Accelerator` 监听 `0.0.0.0:443` 做 TLS 中间人，其根证书
+`CN=SteamTools Certificate, O=BeyondDimension` 已装入 `LocalMachine\Root`，
+所以 Windows 认为它可信。**任何"正常"发出的 token 都被该代理可见。**
+
+判定方法（`Server` 头会暴露代理）：
+
+```powershell
+# 被中间人：Server: github.com,WattToolkit
+Invoke-WebRequest https://api.github.com/zen -UseBasicParsing | % Headers
+# curl 的 Schannel 后端反而会拒绝该伪造证书（CRYPT_E_NO_REVOCATION_CHECK）
+curl.exe https://api.github.com/zen        # -> exit 35
+```
+
+**必须用 `--resolve` 钉住真实 IP 绕过它**（已在本机封装好）：
+
+```powershell
+# ~/.config/dsh/gh-api.ps1 提供 Invoke-GitHubApi；profile 已 dot-source
+Invoke-GitHubApi '/repos/OWNER/REPO/rulesets'
+Invoke-GitHubApi -Method POST -Path '/repos/OWNER/REPO/rulesets' -Body $json
+```
+
+Token 存放：`~/.config/dsh/token.txt`（ACL 已收紧为仅当前用户 + SYSTEM + Administrators），
+由 `~/.config/dsh/gh.ps1` 读入 `$env:GITHUB_TOKEN`。**凭据一律不得入库**（任务书 §2.4 / SECURITY.md §9）。
+
+`gh` CLI **未安装**；若安装，也需同样处理 hosts 劫持（`gh` 走 HTTPS 同样被中间人）。
 
 ---
 
