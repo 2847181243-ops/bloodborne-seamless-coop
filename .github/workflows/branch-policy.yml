@@ -12,6 +12,11 @@ on:
 
 permissions:
   contents: read
+  # 跨所有权授权需要读取 Issue 标签（gh api .../issues/<n>）。
+  # ⚠️ 缺这一项时 Issues API 返回 403，而下面的 2>/dev/null 会把它吞掉，
+  # 最终误报为「Issue 未带 cross-agent 标签」—— 实测踩过：runner 日志显示
+  # GITHUB_TOKEN Permissions 只有 Contents: read / Metadata: read。
+  issues: read
 
 concurrency:
   group: branch-policy-${{ github.event.pull_request.number }}
@@ -125,10 +130,20 @@ jobs:
                 | grep -oE '[0-9]+' || true)
               if [[ -n "$issue" ]]; then
                 echo "PR 描述引用了 Issue #$issue，核对其标签…"
-                labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$issue" \
-                  --jq '.labels[].name' 2>/dev/null | tr '\n' ',' || true)
+                # 区分「API 调用失败」与「标签不符」——两者原因完全不同，
+                # 不能用同一个报错文案（否则会把 403 误报成"缺标签"）。
+                api_err=""
+                if ! labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$issue" \
+                     --jq '.labels[].name' 2>&1); then
+                  api_err="$labels"
+                  labels=""
+                fi
+                labels=$(printf '%s' "$labels" | tr '\n' ',')
                 echo "  Issue #$issue 标签：${labels:-（无）}"
-                if [[ ",$labels," == *",cross-agent,"* ]]; then
+
+                if [[ -n "$api_err" ]]; then
+                  echo "::error::读取 Issue #$issue 的标签失败（不是标签问题）。常见原因：workflow 缺 issues: read 权限。原始错误：$(printf '%s' "$api_err" | head -3 | tr '\n' ' ')"
+                elif [[ ",$labels," == *",cross-agent,"* ]]; then
                   echo "✅ 跨所有权改动已由 Issue #$issue（cross-agent）授权（§52）。"
                   authorized=1
                 else
