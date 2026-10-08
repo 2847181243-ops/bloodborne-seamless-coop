@@ -32,6 +32,8 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
           BASE_REF: ${{ github.base_ref }}
+          PRBODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -89,6 +91,8 @@ jobs:
           fi
 
           failed=0
+          # 越界文件先收集，最后统一判断是否被 cross-agent Issue 授权。
+          out_of_scope=()
           for f in "${files[@]}"; do
             ok=0
             for p in $allowed; do
@@ -98,12 +102,52 @@ jobs:
               fi
             done
             if [[ $ok -eq 0 ]]; then
-              echo "::error file=$f::文件 '$f' 不在 Agent '$AGENT' 的所有权范围内。跨所有权修改必须由 AI-00 建立 Issue（任务书 §48 / §52）。"
-              failed=1
+              out_of_scope+=("$f")
             fi
           done
 
+          # ── 跨所有权授权（任务书 §48 / §52）─────────────────────────────
+          # §52 规定「跨分支修改必须通过 AI-00 建立 Issue」。原实现把任何越界文件
+          # 一律判失败，因此**按流程走完的跨所有权 PR 反而永远合不进去** —— 门禁与
+          # 流程自相矛盾。现在：越界文件若在 PR 描述中引用了带 `cross-agent` 标签的
+          # Issue，则放行并记录；否则失败。
+          if (( ${#out_of_scope[@]} > 0 )); then
+            echo "检测到 ${#out_of_scope[@]} 个越界文件："
+            printf '  - %s\n' "${out_of_scope[@]}"
+
+            authorized=0
+            if [[ -z "${PRBODY:-}" ]]; then
+              echo "::notice::PR 描述为空，无法核对跨所有权 Issue 授权。"
+            else
+              # 取 PR 描述中第一个被引用的 Issue 编号
+              issue=$(printf '%s' "$PRBODY" \
+                | grep -oE '(#[0-9]+|issues/[0-9]+)' | head -1 \
+                | grep -oE '[0-9]+' || true)
+              if [[ -n "$issue" ]]; then
+                echo "PR 描述引用了 Issue #$issue，核对其标签…"
+                labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$issue" \
+                  --jq '.labels[].name' 2>/dev/null | tr '\n' ',' || true)
+                echo "  Issue #$issue 标签：${labels:-（无）}"
+                if [[ ",$labels," == *",cross-agent,"* ]]; then
+                  echo "✅ 跨所有权改动已由 Issue #$issue（cross-agent）授权（§52）。"
+                  authorized=1
+                else
+                  echo "::error::Issue #$issue 未带 cross-agent 标签，不能作为跨所有权授权。"
+                fi
+              else
+                echo "::error::存在越界文件，但 PR 描述未引用任何 Issue 编号。"
+              fi
+            fi
+
+            if [[ $authorized -eq 0 ]]; then
+              for f in "${out_of_scope[@]}"; do
+                echo "::error file=$f::文件 '$f' 不在 Agent '$AGENT' 的所有权范围内，且未被 cross-agent Issue 授权。跨所有权修改必须先由 AI-00 建立 Issue 并在 PR 描述中引用（任务书 §48 / §52）。"
+              done
+              failed=1
+            fi
+          fi
+
           if [[ $failed -eq 0 ]]; then
-            echo "✅ 本次 PR 的 ${#files[@]} 个改动文件全部落在 $AGENT 的所有权范围内。"
+            echo "✅ 本次 PR 的 ${#files[@]} 个改动文件全部在 $AGENT 的所有权范围内，或已获跨所有权授权。"
           fi
           exit $failed
