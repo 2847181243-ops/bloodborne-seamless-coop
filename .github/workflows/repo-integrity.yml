@@ -43,20 +43,24 @@ jobs:
           #  1) U+FFFD 替换字符：无损 UTF-8 校验失败时出现，必定是编码损坏；
           #  2) GBK 残留标记字符：UTF-8 字节被按 GBK 解码后的产物。
           # 这些码位在正常中英文技术文档中不出现；误报率已验证为 0
-          # （在修复后的 39 个已跟踪文件上零命中），且能命中修复前的坏文件
+          # （在修复后的 40 个已跟踪文件上零命中），且能命中修复前的坏文件
           # （标记字命中数：config.yml 15 处 / CODEOWNERS 24 处）。
           #
-          # 标记字符码位（便于以后维护与扩展）：
-          #   瀹U+7039 夊U+590A 叏U+53CF 婕U+5A55 忔U+5FD4 礊U+790A
-          #   锛U+951B 堣U+5823 鍕U+9355 鐨U+9428 浜U+6D5C 璺U+7490
-          #   鐢U+9602 涓U+6EA2 鍒U+6C11 锛U+9429 鏃U+93AF
-          # ⚠️ 若将来出现新的损坏模式，在下面 for 循环的标记字列表里追加即可。
-          #    注意：匹配必须是「字面子串」，不要写成 ["$markers"] ——
-          #    方括号在 bash 里是字符类，会按**字节**逐一匹配，导致几乎每个
-          #    中文文件都误报（已实测踩过这个坑）。
+          # ⚠️ 标记字一律用 $'\uXXXX' 转义书写，绝不在本文件里写出字面字符。
+          #    原因：本文件也在扫描范围内，字面标记字会让门禁**自己**把自己判成损坏
+          #    （曾实测：GitHub runner 上 step「校验文件编码」失败，而 Windows 本地
+          #    因 CRLF 检出而假绿）。
+          #    码位：U+7039 U+590A U+53CF U+5A55 U+5FD4 U+790A U+951B U+5823
+          #          U+9355 U+9428 U+6D5C U+7490 U+9602 U+6EA2 U+6C11 U+9429 U+93AF
 
           # U+FFFD 的 UTF-8 编码为 EF BF BD（bash 内建字符串匹配按字节比较）。
           fffd=$'\xef\xbf\xbd'
+
+          markers=(
+            $'\u7039' $'\u590a' $'\u53cf' $'\u5a55' $'\u5fd4' $'\u790a'
+            $'\u951b' $'\u5823' $'\u9355' $'\u9428' $'\u6d5c' $'\u7490'
+            $'\u9602' $'\u6ea2' $'\u6c11' $'\u9429' $'\u93af'
+          )
 
           failed=0
           checked=0
@@ -81,26 +85,23 @@ jobs:
               continue
             fi
 
-            # 用「字面子串」检测标记字。
-            # 唯一豁免：本工作流自身——它的说明文字里必须写出这些标记字，
-            # 所以只对它跳过注释行，其他文件（含注释）全部检查。
+            # 用「字面子串」逐个匹配标记字（上面已用转义书写，本文件不会自伤）。
             hits=0
-            if [[ "$f" == ".github/workflows/repo-integrity.yml" ]]; then
-              scan="$(grep -vE '^[[:space:]]*#' "$f" || true)"
-            else
-              scan="$content"
-            fi
             while IFS= read -r line; do
-              for m in 瀹 夊 叏 婕 忔 礊 锛 堣 鍕 鐨 浜 璺 鐢 涓 鍒 鏃; do
+              for m in "${markers[@]}"; do
                 if [[ "$line" == *"$m"* ]]; then
                   hits=$((hits + 1))
                   break
                 fi
               done
-            done <<< "$scan"
+            done <<< "$content"
 
             if [[ $hits -gt 0 ]]; then
-              echo "::error file=$f::检测到编码损坏残留（GBK 误码，例如 瀹夊叏 / 鐨 / 浜），命中 $hits 行。请用 UTF-8 重写该文件的文本内容。"
+              if [[ "$f" == ".github/workflows/repo-integrity.yml" ]]; then
+                echo "::error file=$f::门禁文件自身命中标记字——说明转义写法被破坏（本文件不得出现字面标记字）。"
+              else
+                echo "::error file=$f::检测到编码损坏残留（GBK 误码），命中 $hits 行。请用 UTF-8 重写该文件的文本内容。"
+              fi
               failed=1
             fi
           done < <(git ls-files -z)
