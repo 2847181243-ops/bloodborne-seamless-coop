@@ -175,7 +175,7 @@ function Invoke-Bash {
 function Get-ChangedFiles {
     # -c core.quotepath=false is REQUIRED. With git's default (true) a non-ASCII
     # path is rendered as octal escapes inside quotes:
-    #     "docs/standards/\345\217\202..." 
+    #     "docs/standards/\345\217\202..."
     # The write-scope prefix match then fails and reports a bogus out-of-scope
     # file. Measured with a Chinese filename in docs/standards/.
     # The quote-stripping is defensive: git still quotes paths containing unusual
