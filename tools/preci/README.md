@@ -6,6 +6,32 @@
 
 ---
 
+## 文件
+
+| 文件 | 作用 |
+|---|---|
+| `preci.ps1` | 预检主程序。**纯 ASCII**（理由见下） |
+| `gates.yml` | 单一事实来源：每个检查、对应 CI 上下文、阶段归属、`never_require` |
+| `validate_workflows.py` | 用真实 YAML 解析器校验 workflow 结构 |
+| `fetch_pr.py` | 阶段 2 取 PR 描述与标签（**独立进程**，理由见下） |
+| `messages.json` | 全部中文文案（UTF-8 显式读取） |
+| `README.md` | 本文件 |
+
+### 为什么 `fetch_pr.py` 是独立进程
+
+取 PR 数据在 Windows PowerShell 5.1 里**连续失败三次**，每次都是不同层面的对象封送问题：
+
+| 尝试 | 结果 |
+|---|---|
+| `Invoke-RestMethod` | `cannot convert PSCustomObject to Int32`（嵌套集合被索引时） |
+| `[System.Net.WebRequest]` + 手工解析 | 单独跑正常，放进脚本仍触发同一转换错误 |
+| `curl.exe` + `ConvertFrom-Json` | `ArgumentTransformationMetadataException`（错误指向 `ConvertFrom-Json` 那一行） |
+
+与其继续猜 PowerShell 的封送规则，不如把取数放进一个**只负责写两个文件**的独立进程 ——
+它可以单独测试，接口小到不会出错。这是刻意的工程取舍，不是偷懒。
+
+---
+
 ## 怎么用
 
 ```powershell

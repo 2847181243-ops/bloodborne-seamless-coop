@@ -82,11 +82,19 @@ function M {
     $t = $script:Msg[$Key]
     if (-not $t) { return "[missing message: $Key]" }
     if ($Arg -and $Arg.Count -gt 0) {
-        # `return ($t -f $Arg)` would UNROLL the array, so a two-placeholder
-        # message came back as two separate strings and a single-string
-        # parameter then failed with "cannot convert PSCustomObject to Int32".
-        # The leading comma wraps it so the array is returned intact.
-        try { return ,($t -f $Arg) } catch { return $t }
+        # Coerce every argument to string FIRST. PowerShell's -f is picky: passing
+        # an object (e.g. a natively-typed exception property) raises
+        # "Cannot convert ... to type System.Int32", and swallowing that in a
+        # catch made a broken message silently degrade into the raw template --
+        # which then printed a whole PSCustomObject into the log.
+        $strs = @()
+        foreach ($a in $Arg) { $strs += [string]$a }
+        try {
+            return ,($t -f $strs)
+        } catch {
+            # Never fail silently: surface the formatting problem itself.
+            return ("[message format error: $Key -> " + [string]$_.Exception.Message + "]")
+        }
     }
     return $t
 }
@@ -530,18 +538,33 @@ if ($Stage -ge 2) {
     $labels = ''
     if ($Pr -gt 0) {
         Write-Info (M 's2_fetch' @($Pr))
-        if (-not $token) {
-            Write-Skip (M 's2_notoken')
+        # Delegate the fetch to fetch_pr.py. Three inline attempts under Windows
+        # PowerShell 5.1 all failed on object marshalling (Invoke-RestMethod,
+        # System.Net.WebRequest, curl+ConvertFrom-Json each raised
+        # "cannot convert PSCustomObject to Int32" or an
+        # ArgumentTransformationMetadataException). A separate process that only
+        # has to write two files is testable and boring -- which is the point.
+        $pyExe = $null
+        foreach ($cand in @('python', 'python3', 'py')) {
+            $c = Get-Command $cand -ErrorAction SilentlyContinue
+            if ($c) { $pyExe = $c.Source; break }
+        }
+        $fetcher = Join-Path $PSScriptRoot 'fetch_pr.py'
+        if (-not $pyExe -or -not (Test-Path $fetcher)) {
+            Write-Skip (M 's2_fetch_fail' @($Pr, 'python or fetch_pr.py unavailable'))
         } else {
-            try {
-                $hdr = @{ Authorization = "Bearer $token"; 'User-Agent' = 'preci'; Accept = 'application/vnd.github+json' }
-                $pr = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoSlug/pulls/$Pr" -Headers $hdr -TimeoutSec 30
-                $PrBody = Join-Path ([IO.Path]::GetTempPath()) ("preci-pr$Pr.md")
-                [IO.File]::WriteAllText($PrBody, $pr.body, (New-Object Text.UTF8Encoding($false)))
-                $labels = (@($pr.labels | ForEach-Object { $_.name }) -join ',')
-                Write-Info (M 's2_fetched' @($Pr, $pr.head.ref, $labels))
-            } catch {
-                Write-Skip (M 's2_fetch_fail' @($Pr, $_.Exception.Message))
+            $deadline = Join-Path ([IO.Path]::GetTempPath()) 'preci-fetch'
+            $fout = (& $pyExe $fetcher ([string]$Pr) $deadline 2>&1 | Out-String)
+            $fcode = $LASTEXITCODE
+            if ($fcode -ne 0) {
+                $why = (($fout.Trim() -split "`n") | Select-Object -Last 1)
+                Write-Skip (M 's2_fetch_fail' @($Pr, [string]$why))
+            } else {
+                $pf = Join-Path $deadline "pr$Pr-body.md"
+                $lf = Join-Path $deadline "pr$Pr-labels.txt"
+                if (Test-Path $pf) { $PrBody = $pf }
+                if (Test-Path $lf) { $labels = (Get-Content $lf -Raw); if ($null -eq $labels) { $labels = '' } }
+                Write-Info (M 's2_fetched' @($Pr, '', [string]$labels))
             }
         }
     }
@@ -563,7 +586,13 @@ if ($Stage -ge 2) {
         if ($token) { $pre += "export GITHUB_TOKEN=$token`n" }
         if ($labels) { $pre += "export LABELS='$labels'`n" }
         $bodyUnix = $PrBody -replace '\\', '/'
-        $pre += "export PRBODY=`"`$(cat '$bodyUnix')`"`n"
+        # The gate scripts read $BODY (the name used by the workflow's `env:` block).
+        # Exporting only PRBODY left BODY unset -- and when the parent shell happened
+        # to carry a stale BODY, the gate silently validated THAT instead of the PR
+        # under test (observed: a corrected PR body kept failing on the old text).
+        # Export BODY explicitly; keep PRBODY for compatibility.
+        $pre += "export BODY=`"`$(cat '$bodyUnix')`"`n"
+        $pre += "export PRBODY=`"`$BODY`"`n"
 
         $names = @((M 's2_step1'), (M 's2_step2'))
         for ($i = 0; $i -lt $tpl.Count -and $i -lt 2; $i++) {
