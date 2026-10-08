@@ -69,6 +69,22 @@ compile_commands.json
 vcpkg_installed/
 packages/
 
+# ── Python 缓存（tools/preci 是 Python 脚本）──────────────────
+# 曾把 tools/preci/__pycache__/*.pyc 提上去过一次：它是二进制，
+# 会让文件编码检查报「invalidUTF8」（编码检查按文本读它）。
+__pycache__/
+*.py[cod]
+# 本地预检的依赖目录（pip install --target tools/preci/.pylibs）
+tools/preci/.pylibs/
+.pytest_cache/
+
+# ── 本地工具链（tools/toolchain/）────────────────────────────
+# 由 tools/toolchain/setup-toolchain.ps1 用 pip 装进来的隔离工具链
+# （cmake / ninja / zig / clang-format / clang-tidy，合计约 540 MB）。
+# **绝对不能提交**：体积巨大、含平台相关二进制、且各人环境不同。
+# 需要时每人自己跑一次 setup 脚本。
+tools/toolchain/
+
 # ── Visual Studio / Rider / VS Code ──────────────────────────
 .vs/
 .vscode/
