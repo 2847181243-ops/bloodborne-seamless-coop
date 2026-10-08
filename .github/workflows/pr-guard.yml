@@ -206,17 +206,35 @@ jobs:
             vlvl_text=$(section_content "当前验证等级")
             found=""
             n=0
-            for L in "${LEVELS[@]}"; do
-              if printf '%s' "$vlvl_text" | grep -qF "$L"; then
-                found="$L"
-                n=$((n + 1))
+            # A level counts only when it is DECLARED, not merely mentioned.
+            # Negated or explanatory mentions must not count: an honest note like
+            # "Multiplayer Verified 不适用" previously blocked the PR, which
+            # teaches people to write less -- the opposite of the intent.
+            #
+            # Accepted declaration forms:
+            #   - [x] Compile Verified      (checkbox)
+            #   Compile Verified            (the level is the whole line)
+            while IFS= read -r ln; do
+              [[ -z "$ln" ]] && continue
+              if printf '%s' "$ln" | grep -qE '不适用|不涉及|无法|未达到|没有|等价|相当于|不算|仅|只是|参见|说明|N/A|n/a'; then
+                continue
               fi
-            done
+              for L in "${LEVELS[@]}"; do
+                if [[ "$ln" == *"$L"* ]]; then
+                  rest="${ln//$L/}"
+                  rest="$(printf '%s' "$rest" | tr -d '[:space:][:punct:]xX[]*')"
+                  if [[ -z "$rest" ]]; then
+                    found="$L"
+                    n=$((n + 1))
+                  fi
+                fi
+              done
+            done <<< "$vlvl_text"
             if [[ "$n" -eq 0 ]]; then
-              echo "::error::未声明验证等级。请在「如何验证」勾选 1 个等级，或在「当前验证等级」写明其中之一：${LEVELS[*]}（任务书 §39）。"
+              echo "::error::未声明验证等级。请在「如何验证」勾选 1 个，或在「当前验证等级」单独一行写明其中之一：${LEVELS[*]}（任务书 §39，且该行不得含「不适用 / 等价」等说明性文字）。"
               failed=1
             elif [[ "$n" -gt 1 ]]; then
-              echo "::error::「当前验证等级」写明了 $n 个等级 —— 必须且只能声明 1 个（§39 不允许并列声明）。"
+              echo "::error::「当前验证等级」声明了 $n 个等级 —— 必须且只能声明 1 个（§39 不允许并列声明）。"
               failed=1
             else
               echo "✅ 验证等级（正文）：$found"
