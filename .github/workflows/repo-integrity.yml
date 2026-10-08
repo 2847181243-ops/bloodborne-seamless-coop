@@ -40,29 +40,35 @@ jobs:
           set -euo pipefail
 
           # 判据（全部与 locale 无关，不依赖 grep -P）：
-          #  1) U+FFFD 替换字符：无损 UTF-8 校验失败时出现，必定是编码损坏；
-          #  2) GBK 残留标记字符：UTF-8 字节被按 GBK 解码后的产物。
-          # 这些码位在正常中英文技术文档中不出现；误报率已验证为 0
-          # （在修复后的 40 个已跟踪文件上零命中），且能命中修复前的坏文件
-          # （标记字命中数：config.yml 15 处 / CODEOWNERS 24 处）。
+          #  1) 文件不是合法 UTF-8（iconv 判定）；
+          #  2) U+FFFD 替换字符（UTF-8 字节序列 EF BF BD）；
+          #  3) GBK 残留标记字符（UTF-8 字节被按 GBK 解码后的产物）。
           #
-          # ⚠️ 标记字一律用 $'\uXXXX' 转义书写，绝不在本文件里写出字面字符。
-          #    原因：本文件也在扫描范围内，字面标记字会让门禁**自己**把自己判成损坏
-          #    （曾实测：GitHub runner 上 step「校验文件编码」失败，而 Windows 本地
-          #    因 CRLF 检出而假绿）。
-          #    码位：U+7039 U+590A U+53CF U+5A55 U+5FD4 U+790A U+951B U+5823
-          #          U+9355 U+9428 U+6D5C U+7490 U+9602 U+6EA2 U+6C11 U+9429 U+93AF
+          # 标记字一律以「八进制字节转义」写在 ASCII 源里，再由 printf %b 还原：
+          #  ⚠️ 不要用 $'\uXXXX' —— 它在 Git Bash 5.2.26 上**不展开**，会退化成
+          #     字面文本 "\u7039"（实测 6 个 ASCII 字节），导致标记表整体失效、
+          #     门禁静默变成空操作。八进制 $'\ooo' / printf %b '\ooo' 各平台一致。
+          #  ⚠️ 也不要在本文件里写出字面标记字：本文件本身也在扫描范围内
+          #     （曾实测：GitHub runner 上因本文件含字面标记字而自我判失败）。
+          #  码位：U+7039 U+590A U+53CF U+5A55 U+5FD4 U+790A U+951B U+5823
+          #        U+9355 U+9428 U+6D5C U+7490 U+9602 U+6EA2 U+6C11 U+9429 U+93AF
 
-          # U+FFFD 的 UTF-8 编码为 EF BF BD（bash 内建字符串匹配按字节比较）。
-          fffd=$'\xef\xbf\xbd'
+          PAT=$(mktemp)
+          trap 'rm -f "$PAT"' EXIT
+          printf '%b\n' \
+            '\347\200\271' '\345\244\212' '\345\217\217' '\345\251\225' \
+            '\345\277\224' '\347\244\212' '\351\224\233' '\345\240\243' \
+            '\351\215\225' '\351\214\250' '\346\265\234' '\347\221\272' \
+            '\351\214\242' '\346\266\221' '\345\210\222' '\351\223\203' > "$PAT"
 
-          markers=(
-            $'\u7039' $'\u590a' $'\u53cf' $'\u5a55' $'\u5fd4' $'\u790a'
-            $'\u951b' $'\u5823' $'\u9355' $'\u9428' $'\u6d5c' $'\u7490'
-            $'\u9602' $'\u6ea2' $'\u6c11' $'\u9429' $'\u93af'
-          )
+          # U+FFFD 的 UTF-8 编码为 EF BF BD。
+          fffd=$'\357\277\275'
+
+          # grep -F 按字节做固定串匹配，与 locale 无关（已验证 C / C.UTF-8 / en_US.UTF-8 结果一致）。
+          mapfile -t hitfiles < <(git ls-files -z | xargs -0 -r grep -a -l -F -f "$PAT" 2>/dev/null || true)
 
           failed=0
+          # --- 1) UTF-8 合法性 + U+FFFD ---
           checked=0
           while IFS= read -r -d '' f; do
             case "$f" in
@@ -77,34 +83,20 @@ jobs:
             fi
 
             content="$(<"$f")"
-
-            # U+FFFD 检测需要剥掉 BOM（BOM 本身以 EF BB 开头，误匹配修复字符）。
-            if [[ "${content#$'\xef\xbb\xbf'}" == *"$fffd"* ]]; then
+            # 剥掉 BOM（BOM 以 EF BB 开头，可能干扰修复字符判断）。
+            if [[ "${content#$'\357\273\277'}" == *"$fffd"* ]]; then
               echo "::error file=$f::包含 U+FFFD 替换字符，说明存在非法或损坏的字节序列。"
-              failed=1
-              continue
-            fi
-
-            # 用「字面子串」逐个匹配标记字（上面已用转义书写，本文件不会自伤）。
-            hits=0
-            while IFS= read -r line; do
-              for m in "${markers[@]}"; do
-                if [[ "$line" == *"$m"* ]]; then
-                  hits=$((hits + 1))
-                  break
-                fi
-              done
-            done <<< "$content"
-
-            if [[ $hits -gt 0 ]]; then
-              if [[ "$f" == ".github/workflows/repo-integrity.yml" ]]; then
-                echo "::error file=$f::门禁文件自身命中标记字——说明转义写法被破坏（本文件不得出现字面标记字）。"
-              else
-                echo "::error file=$f::检测到编码损坏残留（GBK 误码），命中 $hits 行。请用 UTF-8 重写该文件的文本内容。"
-              fi
               failed=1
             fi
           done < <(git ls-files -z)
+
+          # --- 2) GBK 残留标记字 ---
+          for f in "${hitfiles[@]:-}"; do
+            [[ -z "$f" ]] && continue
+            echo "::error file=$f::检测到编码损坏残留（GBK 误码）。请用 UTF-8 重写该文件的文本内容。"
+            LC_ALL=C grep -a -n -F -f "$PAT" "$f" | head -3
+            failed=1
+          done
 
           if [[ $failed -eq 0 ]]; then
             echo "✅ 已检查 $checked 个已跟踪文本文件，编码正常（UTF-8，无 GBK 残留）。"
