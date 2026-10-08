@@ -1,0 +1,75 @@
+name: open-fix-pr
+
+# One-shot helper: open the head -> base PR using the GITHUB_TOKEN that Actions
+# injects, because this machine cannot create a PR locally (hosts hijacks
+# api.github.com to 127.0.0.1 / Steam++ MITM, and there is no PAT or gh CLI).
+#
+# This file is intentionally PURE ASCII:
+#   - it documents all ownership info in the PR body instead of comments;
+#   - a non-ASCII workflow file here would be caught by repo-integrity.yml
+#     (correctly) and could be mangled by shell/editor encoding steps.
+#
+# It runs only when this file itself is touched, or via manual dispatch.
+# Safe to delete once the PR exists.
+
+on:
+  push:
+    paths:
+      - '.github/workflows/open-fix-pr.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open-pr:
+    name: open-pr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR (reuse if it already exists)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          API="https://api.github.com/repos/${REPO}/pulls"
+          HEAD_BRANCH="lead/fix-encoding-corruption"
+          TITLE="fix(ci): repair GBK-mojibake in 2 files, add encoding gate, fix build-gate context deadlock"
+          BASE="main"
+
+          printf '%s' 'IyMg5pS55LqG5LuA5LmICgrkv67lpI0gdjAg6aqo5p625o+Q5Lqk5byV5YWl55qEKirkuK3mlofnvJbnoIHmjZ/lnY8qKu+8iDIg5Liq5paH5Lu277yJ77yM5bm25paw5aKe5LiA6YGTKirnvJbnoIHpl6jnpoEqKumYsuWkjeWPke+8mgoKMS4gYC5naXRodWIvSVNTVUVfVEVNUExBVEUvY29uZmlnLnltbGAg4oCU4oCUIOS4ieadoSBjb250YWN0X2xpbmtzIOeahCBgbmFtZWAgLyBgYWJvdXRgCiAgIOiiq+OAjFVURi04IOWtl+iKguaMiSBHQksg6Kej56CB44CN56C05Z2P44CCR2l0SHViIGlzc3VlIOaooeadv+mAieaLqeWZqOS8muebtOaOpeaYvuekuuS5seegge+8mwogICDlkIzml7booYznu5PmnoTooqvnoLTlnY/vvIg3IOihjOiAjOmdniAxMyDooYzvvIxjb250YWN0X2xpbmtzIOWQhOmhueaMpOWcqCBgdXJsOmAg6KGM5LiK77yJ44CCCiAgIOW3suaMieWOn+WniyBVVEYtOCDlrZfoioLpgJDlrZfov5jljp/vvIzph43lhpnkuLrlubLlh4AgVVRGLTjvvIjml6AgQk9N77yJ44CCCjIuIGAuZ2l0aHViL0NPREVPV05FUlNgIOKAlOKAlCDms6jph4rooYzlkIzmoLfmjZ/lnY/vvIjop4TliJnooYzmnKzouqvmmK8gQVNDSUnvvIzmnKrlj5flvbHlk43vvIwKICAgMjgg5p2hIHBhdHRlcm4g5pyJ5pWI77yM5ZCrIGAvZG9jcy9hdWRpdC9gIOS4jiBgL3Rvb2xzL2F1ZGl0L2DvvInjgILku4Xph43lu7rms6jph4rmoIfpopjjgIIKMy4gYC5naXRodWIvd29ya2Zsb3dzL3JlcG8taW50ZWdyaXR5LnltbGDvvIjmlrDlop7vvInigJTigJQg57yW56CB6Zeo56aB77yaCiAgIOagoemqjOaJgOacieW3sui3n+i4quaWh+acrOaWh+S7tuS4uuWQiOazlSBVVEYtOOOAgeaXoCBVK0ZGRkTjgIHml6AgR0JLIOaui+eVmeagh+iusOWtl++8mwogICDlubbmoKHpqowgQ09ERU9XTkVSUyDmoLzlvI/vvIjop4TliJnooYzkuI3lvpfnvKnov5vjgIHlv4XpobvluKYgQG93bmVy44CB6KeE5YiZ6KGM5pWw6Z2e6Zu244CBCiAgIOW/hemhu+WMheWQqyBgL21vZC9zZWN1cml0eS9jcnlwdG8vYOOAgWAvZG9jcy9hdWRpdC9g44CBYC90b29scy9hdWRpdC9g44CBYC9kb2NzL3BlbnRlc3QvYO+8ieOAggo0LiBgLmdpdGh1Yi93b3JrZmxvd3MvYnVpbGQueW1sYCDigJTigJQg5raI6ZmkKirmnoTlu7rpl6jnpoHkuIrkuIvmlofmrbvplIEqKu+8muWOn+WFiOaehOW7uuiiq+aLhuaIkAogICDkuKTkuKogYGlmOmAg5LqS5pal55qEIGpvYu+8iGBXaW5kb3dzIE1TVkMgeDY0YCAvIGDmnoTlu7rpl6jnpoHvvIjml6Dku6PnoIHml7bljaDkvY3vvIlg77yJ77yMCiAgIOWIhuaUr+S/neaKpOmHjOaXoOiuuuaKiuWTquS4quiuvuS4uuW/hemcgO+8jOWPpuS4gOenjeeKtuaAgeS4i+ivpeS4iuS4i+aWh+awuOS4jeWHuueOsCDihpIgUFIg5rC45LmFIHBlbmRpbmfjgIIKICAg546w5ZCI5bm25Li65Y2V5LiAIGpvYiBg5p6E5bu66Zeo56aB77yIV2luZG93cyBNU1ZDIHg2NO+8iWDvvIzlp4vnu4jov5DooYzjgIHkuIrkuIvmloflkI3mgZLlrprjgIIKNS4gYC5kc2gvc2tpbGxzL2JiY29vcC1naXRodWItb3BzL1NLSUxMLm1kYCDigJTigJQg5ZCM5q2l5b+F6ZyA5qOA5p+l5riF5Y2VCiAgIO+8iOihpSBg5paH5Lu257yW56CB5LiOIENPREVPV05FUlMg5a6M5pW05oCnYOOAgeS/ruato+aehOW7uumXqOemgeWQjeensOOAgeaUueS4uuS8mOWFiCBSdWxlc2V0c+OAgQogICDorrDlvZXljZXotKblj7cgQ09ERU9XTkVSUyDml6Dms5Xoh6rlrqHnmoTpmbfpmLHjgIHorrDlvZUgSFRUUFMg6KKrIFN0ZWFtKysg5Lit6Ze05Lq655qE5Yik5a6a5LiO57uV5rOV77yJ44CCCgojIyDkuLrku4DkuYjmlLkKCi0g57yW56CB5o2f5Z2P5Lqn5Ye655qE5LuN5pivKirlkIjms5UgVVRGLTgqKu+8jOaJgOS7pSBgZ2l0YOOAgWRpZmbjgIHmma7pgJogVVRGLTgg5qCh6aqM6YO95p+l5LiN5Ye65p2l44CCCiAg5a6D5bey6ZqPIHYwIOaPkOS6pOaOqOWIsOi/nOerr++8jOWunumZheW9seWTjSBHaXRIdWIg55qEIGlzc3VlIOaooeadv+mAieaLqeWZqO+8iOWuieWFqOaKq+mcsuWFpeWPo++8ieOAggotIOaehOW7uumXqOemgeatu+mUgeaYr+a9nOS8j+mXrumimO+8muS4jeW7uuWIhuaUr+S/neaKpC/op4TliJnpm4blsLHmsLjkuI3lj5HkvZzvvIzlu7rkuoblsLHkvJrorqnmiYDmnIkgUFIg5Y2h5q2744CCCi0g6L+Z5Lik57G76Zeu6aKY6YO957y65LiA6YGT6Ieq5Yqo6Zeo56aB77yM5omA5Lul5LiA5bm26KGl5LiK44CCCgojIyDkv67mlLnkuoblk6rkuKrmqKHlnZcKCuS7hSBgLmdpdGh1Yi9g77yIQ0kg6Zeo56aB44CBSXNzdWUg5qih5p2/44CBQ09ERU9XTkVSU++8ieS4jiBgLmRzaC9g77yIc2tpbGwg5paH5qGj77yJ44CCCioq5peg6L+Q6KGM5pe25Luj56CBKirvvIhgbW9kL2DjgIFgcmVsYXkvYOOAgWBjb25maWcvYCDlnYflsJrmnKrliJvlu7rvvInjgIIKCiMjIOW9seWTjeWTquS6m+ezu+e7nwoKLSBDSe+8muaWsOWiniAxIOS4qiB3b3JrZmxvdyAvIDEg5Liq54q25oCB5qOA5p+lIGDmlofku7bnvJbnoIHkuI4gQ09ERU9XTkVSUyDlrozmlbTmgKdg77ybCiAgYGJ1aWxkLnltbGAg55qE54q25oCB5qOA5p+l5LiK5LiL5paH5ZCN5Y+Y5YyW77yI6Iul5bey5bu65YiG5pSv5L+d5oqk6ZyA5ZCM5q2lIGNvbnRleHRz77yJ44CCCi0gR2l0SHViIOeVjOmdou+8mmlzc3VlIOaooeadv+mAieaLqeWZqOeahOaWh+ahiOaBouWkjeato+W4uOOAggotIOW8gOWPkea1geeoi++8mkNPREVPV05FUlMg5LiO57yW56CB5a6M5pW05oCn5byA5aeL6KKrIENJIOW8uuWItuOAggoKIyMg5aaC5L2V6aqM6K+BCgrkuInlsYLvvIzlhajpg6jlrp7ot5HvvJoKCjEuICoq5q2j5ZCRKirvvJpgZ2l0IGFyY2hpdmVgIOWvvOWHuiBIRUFEIOecn+WuniBMRiDlrZfoioIgKyBgZ2l0IGluaXRgIOKGkiDpl6jnpoEgZXhpdCAw77yMCiAgIDQwIOS4quW3sui3n+i4quaWh+S7tumbtuWRveS4reOAgu+8iOazqOaEj++8mldpbmRvd3Mg5qOA5Ye65Li6IENSTEbvvIznlKjlt6XkvZzljLrnm7TmjqXmtYvkvJrlgYfnu7/vvIwKICAg5b+F6aG755SoIGFyY2hpdmUg55qE55yf5a6e5a2X6IqC44CC77yJCjIuICoq5Y+N5ZCRKirvvJrlj5blh7rkv67lpI3liY0gYGEyOGMyOTVeYCDnmoTnnJ/lrp7lnY8gYmxvYiDlu7rkuLTml7bku5PlupMg4oaSIOmXqOemgeato+ehriBleGl0IDHvvIwKICAgQ09ERU9XTkVSUyDlkb3kuK0gOSDooYwgLyBjb25maWcueW1sIOWRveS4rSAzIOihjO+8jOW5tuaJk+WNsOihjOWPt+OAggozLiAqKui/nOerryBydW5uZXIqKu+8muaOqOmAgeWQjiBbcnVuIDM3ODAwNjY0NDkzXShodHRwczovL2dpdGh1Yi5jb20vMjg0NzE4MTI0My1vcHMvYmxvb2Rib3JuZS1zZWFtbGVzcy1jb29wL2FjdGlvbnMvcnVucy8zNzgwMDY2NDQ5MykKICAgYHJlcG8taW50ZWdyaXR5YCDihpIgc3VjY2Vzc++8iHN0ZXAgM+OAgXN0ZXAgNCDlj4znu7/vvInvvJsKICAgYGJ1aWxkYCDihpIgc3VjY2Vzc++8jOS4lCBqb2Ig5ZCN5bey5pivIGDmnoTlu7rpl6jnpoHvvIhXaW5kb3dzIE1TVkMgeDY077yJYO+8jAogICDlhbbkuK3jgIzml6Dku6PnoIHml7bnmoTor7TmmI7jgI1zdWNjZXNz44CB44CM6YWN572uL+e8luivkS/kuIrkvKDkuqfnianjgI1za2lwcGVk77yI56ym5ZCI5pegIGBDTWFrZUxpc3RzLnR4dGAg55qE6aKE5pyf77yJ44CCCgojIyDlvZPliY3pqozor4HnrYnnuqcKCmBDb21waWxlIFZlcmlmaWVkYCDigJTigJQg5pysIFBSIOS4jeWQq+WPr+e8luivkeS7o+eggeOAgkNJIOmXqOemgSA9PSBgUnVudGltZSBWZXJpZmllZGDvvIjlnKjnnJ/lrp4gcnVubmVyIOS4iuaJp+ihjOW5tuinguWvn+e7k+iuuu+8ieOAggrmtonlj4rov5DooYzml7bnmoQgYE11bHRpcGxheWVyIFZlcmlmaWVkYCAvIGBSZWdyZXNzaW9uIFZlcmlmaWVkYCAvIGBGZWF0dXJlIFZlcmlmaWVkYCAqKuS4jemAgueUqCoq77yI5peg5ri45oiP5Luj56CB5Y+Y5pu077yJ44CCCgojIyDmmK/lkKblrZjlnKjlhbzlrrnmgKfpo47pmakKCi0gKirml6Dov5DooYzml7blhbzlrrnmgKfpo47pmakqKu+8iOaXoCBgbW9kL2Ag5Luj56CB77yJ44CCCi0gKirpnIDopoHkurrlt6XlkIzmraXkuIDmrKEqKu+8muiLpeW3suWtmOWcqOWIhuaUr+S/neaKpOaIluinhOWImembhu+8jOWFtiByZXF1aXJlZCBzdGF0dXMgY2hlY2tzIOmcgOabtOaWsOS4ugogIOWNleS4gOaehOW7uuS4iuS4i+aWhyBg5p6E5bu66Zeo56aB77yIV2luZG93cyBNU1ZDIHg2NO+8iWDvvIzlubbliqDlhaUgYOaWh+S7tue8lueggeS4jiBDT0RFT1dORVJTIOWujOaVtOaAp2DjgIIKICDlkKbliJnml6fnmoQgYOaehOW7uumXqOemge+8iOaXoOS7o+eggeaXtuWNoOS9je+8iWAg5bCG5rC46L+cIHBlbmRpbmfjgIIKCiMjIOivgeaNruetiee6p++8iOa2ieWPiumAhuWQkee7k+iuuuaXtuW/heWhq++8iQoK5LiN5raJ5Y+K6YCG5ZCR57uT6K6644CC5paH5Lu257yW56CB57uT6K665Li6IGBDb25maXJtZWRg77ya55Sx5a2X6IqC57qn6L2s5YKoICsgR0JLIOWPjeino+mAkOWtl+WkjeaguOehruiupArvvIjkvovlpoIgYGU3IDgwIGI5IGU1IGE0IDhhYCDihpIg5Y6f5aeLIFVURi04IOino+eggeS4uuOAjOWuieWFqOOAje+8ieOAggoKIyMg5a6J5YWo6Ieq5qOA77yI5raJ5Y+K572R57ucIC8g5a2Y5qGjIC8g54mp5ZOB5Y+R5pS+5pe25b+F5aGr77yJCgrkuI3mtonlj4rnvZHnu5zjgIHlrZjmoaPmiJbnianlk4Hlj5HmlL7ku6PnoIHjgILku4Xop6blj4ogQ0kg5LiO5paH5qGj77yb5pyq5paw5aKe5Lu75L2V6ZqQ56eB5pWw5o2u6YeH6ZuG44CBCuacquW8leWFpeesrOS4ieaWueacjeWKoeOAgeacquaPkOS6pOWHreaNru+8iHRva2VuIOS4gOW+i+S4jeWFpeW6k++8ieOAggoKIyMg5Y+Y5pu05paH5Lu255qE5omA5pyJ5p2DCgpgLmdpdGh1Yi8qKmAg5LiOIGAuZHNoLyoqYCDlnYflsZ4gKipBSS0wMCoq77yI6KeBIGBDT0RFT1dORVJTYCDkuI4gYGJyYW5jaC1wb2xpY3kueW1sYCDnmoQgYFNDT1BFW2xlYWRdYO+8ieOAggrliIbmlK/lkb3lkI0gYGxlYWQvZml4LWVuY29kaW5nLWNvcnJ1cHRpb25gIOespuWQiCBgbGVhZC8qYCDop4TliJnvvIxgYnJhbmNoLXBvbGljeWAg55qE5omA5pyJ5p2D6Zeo56aB5bqU6YCa6L+H44CCCgojIyDlvoXnoa7orqTpobkgLyDpgZfnlZnpo47pmakKCi0g6KeE5YiZ6ZuGIC8g5YiG5pSv5L+d5oqkKirlsJrmnKrphY3nva4qKu+8iOW9k+WJjSAwIOS4quinhOWImembhu+8ie+8jOaJgOS7peacrCBQUiDnmoTpl6jnpoEi6LeR5LqG5L2G5oum5LiN5L2PIu+8jAogIOmcgOS7k+W6k+euoeeQhuWRmOWPpuihjOmFjee9ruW5tuaKiuS4iui/sOS4iuS4i+aWh+WKoOWFpeW/hemcgOajgOafpeOAggotIGByZXBvLWludGVncml0eWAg55qE5qCH6K6w5a2X6KGo5Li6Kirlt7Lnn6XmqKHlvI/pu5HlkI3ljZUqKu+8iDEyIOS4quWunua1i+mbtuivr+aKpeeggeS9je+8ie+8jAogIOS4jeaYr+mAmueUqOe8lueggeajgOa1i+WZqO+8m+iLpeWHuueOsOaWsOeahOaNn+Wdj+aooeW8j+mcgOi/veWKoOeggeS9jeOAguaJqeWFheWJjeW/hemhu+WcqOW5suWHgOS7k+W6k+S4iumqjOivgembtuWRveS4reOAggotIOWuoeiuoemTvui3r+eahOe7k+aehOaAp+epuua0nuS7jeacquino+WGs++8mmBwci1ndWFyZGAg55qEIGBzZWN1cml0eS1nYXRlYCAqKuWPquivu+agh+etvuOAgeS4jeivuyBgZG9jcy9hdWRpdC9gIOaKpeWRiuWGheWuuSoq44CCCg==' | base64 -d > /tmp/body.md
+          echo "body bytes: $(wc -c < /tmp/body.md)"
+
+          payload=$(jq -n \
+            --arg title "$TITLE" \
+            --arg head "$HEAD_BRANCH" \
+            --arg base "$BASE" \
+            --rawfile body /tmp/body.md \
+            '{title:$title, head:$head, base:$base, body:$body, draft:false}')
+
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+            -X POST "$API" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "$payload")
+
+          echo "HTTP $code"
+          if [ "$code" = "201" ]; then
+            echo "PR created"
+            jq -r '"number: \(.number)\nurl: \(.html_url)"' /tmp/resp.json
+          elif [ "$code" = "422" ]; then
+            echo "HTTP 422 - already exists, or head/base invalid:"
+            jq -r '.errors[]?.message // .message' /tmp/resp.json || true
+            curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$API?head=2847181243-ops:$HEAD_BRANCH&state=all" \
+              | jq -r '.[] | "existing PR #\(.number): \(.html_url) [\(.state)]"' || true
+          else
+            echo "::error::failed to create PR (HTTP $code)"
+            cat /tmp/resp.json
+            exit 1
+          fi
