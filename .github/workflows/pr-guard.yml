@@ -239,3 +239,60 @@ jobs:
 
           echo "✅ 审计证据齐全：标签 $LABELS，报告 ${#reports[@]} 份，顶层结论 $expected，双人签核一致。"
           exit 0
+
+  # ---------------------------------------------------------------------------
+  # 唯一必需检查（aggregate gate）
+  #
+  # 为什么需要它 —— 依据 GitHub 官方文档（已逐条核实，非二手转述）：
+  #   https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
+  #
+  #   1) 「workflow 被 path/branch 过滤或 [skip ci] 跳过 → 关联检查**停留 Pending**并阻断合并」
+  #      → 所以**不能**把可被跳过的 workflow 设为必需检查。
+  #   2) 「**job** 被 if: 条件跳过 → 该 job 报 **Success**」
+  #      → 所以路径判断要放 job 级，而不是 workflow 级 paths:。
+  #   3) 「一个 job 依赖了失败的 job → 该 job 被跳过，**可能不阻断合并**」
+  #      → 所以聚合 job **必须**用 if: always()，否则恰好在最需要它的时刻失效。
+  #
+  # 存在的第二个理由：必需检查是**按上下文名**匹配的字符串契约。此前是 6 个名字，
+  # 任何一个 job 改名都会静默破坏规则集（表现为 PR 永久卡住），而且每加一个门禁都要
+  # 去改一次规则集。收敛成 1 个名字后，新增子门禁不再触碰规则集。
+  #
+  # ⚠️ 顺序要求：GitHub 规定「必需检查必须在过去 7 天内成功运行过」才能被设为必需。
+  #    所以本 job 先落地并跑过一次，之后才把规则集改为只 require `gate`。
+  # ---------------------------------------------------------------------------
+  gate:
+    name: gate
+    needs: [template, security-gate]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 汇总上游 job 结论（任一失败/取消即失败）
+        shell: bash
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          set -uo pipefail
+          echo "上游 job 结论：${RESULTS:-（空）}"
+          failed=0
+          for r in ${RESULTS:-}; do
+            case "$r" in
+              failure|cancelled)
+                echo "::error::上游 job 结论为 '$r' —— 聚合门禁失败。"
+                failed=1
+                ;;
+              skipped)
+                # 被 if: 跳过的 job 报 success/skipped，不算失败；但必须说出来，
+                # 否则「跳过了什么」会被静默吞掉。
+                echo "::notice::存在被跳过的上游 job —— 请确认跳过是有意的（见任务书 §38）。"
+                ;;
+              success)
+                ;;
+              *)
+                echo "::warning::未知结论 '$r'。"
+                ;;
+            esac
+          done
+          if [[ $failed -eq 0 ]]; then
+            echo "✅ 聚合门禁通过：所有上游 job 均未失败。"
+          fi
+          exit $failed

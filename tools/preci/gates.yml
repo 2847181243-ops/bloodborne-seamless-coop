@@ -1,0 +1,183 @@
+# 本地预检清单（pre-CI manifest）
+#
+# 这是「本地预检」与「CI 门禁」之间的**单一事实来源**。
+# `tools/preci/preci.ps1` 读取本文件决定跑哪些检查；CI 的必需检查集合也以本文件为准。
+#
+# 维护规则：
+#   - 每次在 CI 中新增阻断项，**必须**同步在此登记（否则本地预检会漏，等于没预检）。
+#   - `local: true`  表示不依赖 PR 元数据，push 前就能跑。
+#   - `local: false` 表示需要 PR 描述 / 标签 / GitHub API，属于「开 PR 后、请求合并前」阶段。
+#   - `context` 必须与 workflow 里 job 的 `name:` **逐字节相同**（含全角括号）。
+
+version: 1
+
+# ── 阶段 1：push 前必须全绿（不依赖 PR 元数据）─────────────────────────────
+stage1_pre_push:
+  - id: structure
+    name: 必需文件与目录结构
+    context: 必需文件与目录结构
+    workflow: docs-structure.yml
+    local: true
+    what: 任务书要求的必需文件与目录是否存在
+    source: .github/workflows/docs-structure.yml
+
+  - id: encoding
+    name: 文件编码
+    context: 文件编码与 CODEOWNERS 完整性
+    workflow: repo-integrity.yml
+    local: true
+    what: 全部被跟踪文本文件为合法 UTF-8（无 BOM、无 U+FFFD、无 GBK 误码残留）
+    source: .github/workflows/repo-integrity.yml
+
+  - id: codeowners
+    name: CODEOWNERS 完整性
+    context: 文件编码与 CODEOWNERS 完整性
+    workflow: repo-integrity.yml
+    local: true
+    what: CODEOWNERS 存在、规则行不缩进、每行有所有者、必需条目齐全
+    source: .github/workflows/repo-integrity.yml
+
+  - id: wf_syntax
+    name: workflow 语法
+    context: (CI 隐含)
+    workflow: (all)
+    local: true
+    what: 每个 workflow 的 run body 通过 `bash -n`；YAML 可被解析
+    source: .github/workflows/*.yml
+
+  - id: branch_name
+    name: 分支命名
+    context: 分支命名与写入范围
+    workflow: branch-policy.yml
+    local: true
+    what: 分支名为 agent/<id>-<topic> 或 lead/<topic>
+    source: .github/workflows/branch-policy.yml
+
+  - id: ownership
+    name: 写入范围
+    context: 分支命名与写入范围
+    workflow: branch-policy.yml
+    local: true
+    what: 改动文件落在该 Agent 的 SCOPE 内；越界则必须能对应到 cross-agent Issue
+    source: .github/workflows/branch-policy.yml
+    note: 本地只能判断「是否越界」；cross-agent 授权需阶段 2 才能确认
+
+  - id: build
+    name: 构建
+    context: 构建门禁（Windows MSVC x64）
+    workflow: build.yml
+    local: true
+    what: 存在 CMakeLists.txt 时用 MSVC x64 配置并编译；不存在则明确跳过
+    source: .github/workflows/build.yml
+    note: 无代码阶段自动跳过，不算失败
+
+  - id: secrets
+    name: 凭据扫描
+    context: PR 模板必填章节
+    workflow: pr-guard.yml
+    local: true
+    what: diff 新增行中不含凭据 / 私钥特征
+    source: .github/workflows/pr-guard.yml
+
+  - id: style
+    name: 代码规范与注释纪律
+    context: (暂无 CI 上下文；本地阶段 1 执行)
+    workflow: (local)
+    local: true
+    what: |
+      1) .editorconfig 合规：末尾换行、换行符、行尾空白、缩进、行宽 120。
+         该文件早已存在，但此前**没有任何门禁执行它**。
+      2) 注释纪律：任务书 §38（bloodbrone.markdown:1160）原文
+         「禁止…为了消除报错而大面积注释代码」—— 注释掉的代码用启发式检出，
+         零星只告警，成片（单文件 ≥15 行或连续 ≥5 行）判失败。
+      3) 源文件必须有文件头注释（用途与所有者），否则所有权会静默腐烂。
+    source: tools/preci/check_style.py；依据 .editorconfig + bloodbrone.markdown:1160
+    note: |
+      扫描 git blob（HEAD），不扫工作区。实测两个假红陷阱：
+        * 扫工作区：本仓 git ls-files --eol 报 w/crlf，产生上千个 CI 永不出现的假红；
+        * 用 git archive：它会套用 .gitattributes 的导出过滤器，把 LF 导出成 CRLF
+          （实测 5441 个假错）。
+      只有 git cat-file --batch 拿到的是提交里真正的字节。
+
+# ── 阶段 2：开 PR 后、请求合并前必须全绿（依赖 PR 元数据 / API）────────────
+stage2_pre_merge:
+  - id: pr_sections
+    name: PR 必需章节非空
+    context: PR 模板必填章节
+    workflow: pr-guard.yml
+    local: false
+    what: 7 个必需章节存在且去掉注释后仍有内容
+    source: .github/workflows/pr-guard.yml
+
+  - id: issue_link
+    name: 关联 Issue 有效
+    context: PR 模板必填章节
+    workflow: pr-guard.yml
+    local: false
+    what: 含 `- 关联 Issue：#<数字>`，且该 Issue 真实存在（API 校验）
+    source: .github/workflows/pr-guard.yml
+
+  - id: verify_level
+    name: 验证等级
+    context: PR 模板必填章节
+    workflow: pr-guard.yml
+    local: false
+    what: 恰好声明 1 个验证等级（勾选或正文皆可）
+    source: .github/workflows/pr-guard.yml
+
+  - id: evidence_level
+    name: 证据等级
+    context: PR 模板必填章节
+    workflow: pr-guard.yml
+    local: false
+    what: 触及 docs/re/ 或 mod/core/ 时证据等级必须已勾选
+    source: .github/workflows/pr-guard.yml
+
+  - id: sec_selfcheck
+    name: 安全自检
+    context: PR 模板必填章节
+    workflow: pr-guard.yml
+    local: false
+    what: 触及安全敏感路径时安全自检必须全部勾选
+    source: .github/workflows/pr-guard.yml
+
+  - id: module_checked
+    name: 模块勾选
+    context: PR 模板必填章节
+    workflow: pr-guard.yml
+    local: false
+    what: 「修改了哪个模块」至少勾 1 项
+    source: .github/workflows/pr-guard.yml
+
+  - id: audit_gate
+    name: 安全审计门禁
+    context: 安全审计门禁（一票否决）
+    workflow: pr-guard.yml
+    local: false
+    what: 触及敏感路径时必须有 audit:passed / audit:warning 标签 + 合规审计报告 + 双人签核一致
+    source: .github/workflows/pr-guard.yml
+
+  - id: cross_agent
+    name: 跨所有权授权
+    context: 分支命名与写入范围
+    workflow: branch-policy.yml
+    local: false
+    what: 越界文件对应的跨所有权 Issue 带 cross-agent 标签
+    source: .github/workflows/branch-policy.yml
+
+# ── CI 必需状态检查上下文（必须与 job name: 逐字节一致）─────────────────────
+# 规则：宁可少，不可错。禁止把「按路径/事件过滤」的 job 设为必需 —— 会永久 Pending。
+required_status_checks:
+  - 必需文件与目录结构
+  - 分支命名与写入范围
+  - PR 模板必填章节
+  - 安全审计门禁（一票否决）
+  - 文件编码与 CODEOWNERS 完整性
+  - 构建门禁（Windows MSVC x64）
+
+# 明确禁止设为必需的上下文（附原因），供后续维护者防止误加：
+never_require:
+  - context: 同步标签
+    why: 只在 push 到 main 与 workflow_dispatch 触发，PR 上永不出现 → 永久 Pending
+  - context: 自动标注
+    why: 只在 issues 事件触发，与 PR 无关 → 永久 Pending
