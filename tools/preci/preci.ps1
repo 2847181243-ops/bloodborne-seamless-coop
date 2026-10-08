@@ -112,14 +112,20 @@ function Write-Head([string]$t) {
     Write-Host "  $t" -ForegroundColor Cyan
     Write-Host ('-' * 74) -ForegroundColor DarkGray
 }
-function Write-Ok([string]$t)   { Write-Host "  [PASS] $t" -ForegroundColor Green;  $script:Pass++ }
+# Output labels are plain Chinese, not [PASS]/[FAIL]/[SKIP]: the audience is a
+# person reading a terminal, and mixing English tags into Chinese sentences was
+# called out. Labels come from messages.json like every other string.
+function Write-Ok([string]$t) {
+    Write-Host ("  [" + (M 'lbl_pass') + "] $t") -ForegroundColor Green
+    $script:Pass++
+}
 function Write-Bad([string]$t) {
-    Write-Host "  [FAIL] $t" -ForegroundColor Red
+    Write-Host ("  [" + (M 'lbl_fail') + "] $t") -ForegroundColor Red
     $script:Fail++
     [void]$script:Failed.Add($t)
 }
 function Write-Skip([string]$t) {
-    Write-Host "  [SKIP] $t" -ForegroundColor Yellow
+    Write-Host ("  [" + (M 'lbl_skip') + "] $t") -ForegroundColor Yellow
     $script:Skip++
     [void]$script:Unverified.Add($t)
 }
