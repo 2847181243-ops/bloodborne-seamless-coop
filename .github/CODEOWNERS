@@ -1,63 +1,60 @@
-# CODEOWNERS —— 代码所有权
+﻿# CODEOWNERS 鈥斺€?浠ｇ爜鎵€鏈夋潈
 #
-# ⚠️ 占位符：请把 @YOUR_GITHUB_USERNAME 全部替换为你的 GitHub 账号（或 @org/team），
-#    否则 GitHub 的分支保护 / 必需审核人功能不会生效。
-#
-# 规则：**最后匹配的模式生效**（last match wins）。
-# 本文件与 .github/workflows/branch-policy.yml 的所有权映射必须保持一致。
+# 鈿狅笍 鍗犱綅绗︼細璇锋妸 @2847181243-ops 鍏ㄩ儴鏇挎崲涓轰綘鐨?GitHub 璐﹀彿锛堟垨 @org/team锛夛紝
+#    鍚﹀垯 GitHub 鐨勫垎鏀繚鎶?/ 蹇呴渶瀹℃牳浜哄姛鑳戒笉浼氱敓鏁堛€?#
+# 瑙勫垯锛?*鏈€鍚庡尮閰嶇殑妯″紡鐢熸晥**锛坙ast match wins锛夈€?# 鏈枃浠朵笌 .github/workflows/branch-policy.yml 鐨勬墍鏈夋潈鏄犲皠蹇呴』淇濇寔涓€鑷淬€?
+# 鈹€鈹€ 榛樿锛氫粨搴撴墍鏈夎€?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+*                                   @2847181243-ops
 
-# ── 默认：仓库所有者 ─────────────────────────────────────────
-*                                   @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-00 鎬绘帶锛氭帴鍙ｅ绾?/ 闆嗘垚 / 瑁佸喅 / CI 鍩虹璁炬柦 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/docs/interfaces/                   @2847181243-ops
+/docs/integration/                  @2847181243-ops
+/docs/conflict_log/                 @2847181243-ops
+/.github/                           @2847181243-ops
+/README.md                          @2847181243-ops
+/CONTRIBUTING.md                    @2847181243-ops
+/SECURITY.md                        @2847181243-ops
+/docs/README.md                     @2847181243-ops
 
-# ── AI-00 总控：接口契约 / 集成 / 裁决 / CI 基础设施 ─────────
-/docs/interfaces/                   @YOUR_GITHUB_USERNAME
-/docs/integration/                  @YOUR_GITHUB_USERNAME
-/docs/conflict_log/                 @YOUR_GITHUB_USERNAME
-/.github/                           @YOUR_GITHUB_USERNAME
-/README.md                          @YOUR_GITHUB_USERNAME
-/CONTRIBUTING.md                    @YOUR_GITHUB_USERNAME
-/SECURITY.md                        @YOUR_GITHUB_USERNAME
-/docs/README.md                     @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-A1 閫嗗悜 & Core Runtime 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/docs/re/                           @2847181243-ops
+/mod/core/                          @2847181243-ops
 
-# ── AI-A1 逆向 & Core Runtime ────────────────────────────────
-/docs/re/                           @YOUR_GITHUB_USERNAME
-/mod/core/                          @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-A0 骞冲彴閫傞厤 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/mod/platform/                      @2847181243-ops
 
-# ── AI-A0 平台适配 ───────────────────────────────────────────
-/mod/platform/                      @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-A2 Session & Replication 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/mod/session/                       @2847181243-ops
+/mod/replication/                   @2847181243-ops
 
-# ── AI-A2 Session & Replication ──────────────────────────────
-/mod/session/                       @YOUR_GITHUB_USERNAME
-/mod/replication/                   @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-A3 Gameplay Systems 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/mod/gameplay/                      @2847181243-ops
 
-# ── AI-A3 Gameplay Systems ───────────────────────────────────
-/mod/gameplay/                      @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-A4 Balance & PvP 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/mod/balance/                       @2847181243-ops
+/config/                            @2847181243-ops
 
-# ── AI-A4 Balance & PvP ──────────────────────────────────────
-/mod/balance/                       @YOUR_GITHUB_USERNAME
-/config/                            @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-B1/B2/B3 缃戠粶鍩虹璁炬柦 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/mod/network/transport/             @2847181243-ops
+/mod/network/discovery/             @2847181243-ops
+/mod/network/reputation/            @2847181243-ops
 
-# ── AI-B1/B2/B3 网络基础设施 ─────────────────────────────────
-/mod/network/transport/             @YOUR_GITHUB_USERNAME
-/mod/network/discovery/             @YOUR_GITHUB_USERNAME
-/mod/network/reputation/            @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-B4 涓户鑺傜偣 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/relay/                             @2847181243-ops
 
-# ── AI-B4 中继节点 ───────────────────────────────────────────
-/relay/                             @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-C1 瀵嗙爜瀛︼紙鍏朵粬 Agent 涓嶅緱淇敼锛?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/mod/security/crypto/               @2847181243-ops
 
-# ── AI-C1 密码学（其他 Agent 不得修改） ──────────────────────
-/mod/security/crypto/               @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-C2 瀹夊叏鏋舵瀯 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/docs/security/                     @2847181243-ops
 
-# ── AI-C2 安全架构 ───────────────────────────────────────────
-/docs/security/                     @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-C3 瀹夊叏瀹¤锛堝紑鍙?Agent 涓嶅緱淇敼锛?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/docs/audit/                        @2847181243-ops
+/tools/audit/                       @2847181243-ops
 
-# ── AI-C3 安全审计（开发 Agent 不得修改） ────────────────────
-/docs/audit/                        @YOUR_GITHUB_USERNAME
-/tools/audit/                       @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ AI-C4 娓楅€忔祴璇?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/docs/pentest/                      @2847181243-ops
+/tools/pentest/                     @2847181243-ops
 
-# ── AI-C4 渗透测试 ───────────────────────────────────────────
-/docs/pentest/                      @YOUR_GITHUB_USERNAME
-/tools/pentest/                     @YOUR_GITHUB_USERNAME
-
-# ── 任务书：唯一需求来源，仅 AI-00 可改 ──────────────────────
-/bloodbrone.markdown                @YOUR_GITHUB_USERNAME
+# 鈹€鈹€ 浠诲姟涔︼細鍞竴闇€姹傛潵婧愶紝浠?AI-00 鍙敼 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/bloodbrone.markdown                @2847181243-ops

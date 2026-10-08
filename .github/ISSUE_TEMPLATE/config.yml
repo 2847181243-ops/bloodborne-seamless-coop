@@ -1,11 +1,7 @@
-blank_issues_enabled: false
+﻿blank_issues_enabled: false
 contact_links:
-  - name: 安全漏洞（请勿公开披露）
-    url: https://github.com/YOUR_GITHUB_USERNAME/REPO_NAME/security/advisories/new
-    about: MITM / Sybil / DDoS / 协议缺陷 / 供应链问题，请走 Security Advisory 私有渠道。
-  - name: 任务书 v3.0（唯一需求来源）
-    url: https://github.com/YOUR_GITHUB_USERNAME/REPO_NAME/blob/main/bloodbrone.markdown
-    about: 任何需求疑问先查任务书；与 README 冲突时以任务书为准。
-  - name: 贡献指南（分支模型 / 所有权 / 证据等级）
-    url: https://github.com/YOUR_GITHUB_USERNAME/REPO_NAME/blob/main/CONTRIBUTING.md
-    about: 提交 PR 前必读。
+  - name: 瀹夊叏婕忔礊锛堣鍕垮叕寮€鎶湶锛?    url: https://github.com/2847181243-ops/bloodborne-seamless-coop/security/advisories/new
+    about: MITM / Sybil / DDoS / 鍗忚缂洪櫡 / 渚涘簲閾鹃棶棰橈紝璇疯蛋 Security Advisory 绉佹湁娓犻亾銆?  - name: 浠诲姟涔?v3.0锛堝敮涓€闇€姹傛潵婧愶級
+    url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/bloodbrone.markdown
+    about: 浠讳綍闇€姹傜枒闂厛鏌ヤ换鍔′功锛涗笌 README 鍐茬獊鏃朵互浠诲姟涔︿负鍑嗐€?  - name: 璐＄尞鎸囧崡锛堝垎鏀ā鍨?/ 鎵€鏈夋潈 / 璇佹嵁绛夌骇锛?    url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/CONTRIBUTING.md
+    about: 鎻愪氦 PR 鍓嶅繀璇汇€?
