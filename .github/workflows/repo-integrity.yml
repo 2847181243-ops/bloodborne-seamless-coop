@@ -1,0 +1,161 @@
+name: repo-integrity
+
+# 防复发门禁：文件编码完整性 + CODEOWNERS 格式。
+#
+# 背景：v0 骨架提交时，.github/CODEOWNERS 与 .github/ISSUE_TEMPLATE/config.yml
+# 的中文文本被「UTF-8 字节按 GBK 解码」破坏过一次。这类损坏产出的仍是**合法 UTF-8**，
+# 因此 UTF-8 校验抓不到它，只有按已知残留字符检测才抓得到。
+#
+# ⚠️ 本工作流**不是**安全审计门禁（审计门禁见 pr-guard.yml 的 security-gate）。
+# 它不读取 docs/audit/ 内容，只做仓库级格式完整性检查。
+#
+# 注意：分支保护里的 contexts 必须与下面的 job name 完全一致。
+# 修改 job name 后需同步 gh api .../branches/main/protection。
+
+on:
+  push:
+    branches: [main, 'agent/**', 'lead/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-integrity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  encoding-and-codeowners:
+    name: 文件编码与 CODEOWNERS 完整性
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 校验文件编码
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 判据（全部与 locale 无关，不依赖 grep -P）：
+          #  1) U+FFFD 替换字符：无损 UTF-8 校验失败时出现，必定是编码损坏；
+          #  2) GBK 残留标记字符：UTF-8 字节被按 GBK 解码后的产物。
+          # 这些码位在正常中英文技术文档中不出现；误报率已验证为 0
+          # （在修复后的 39 个已跟踪文件上零命中），且能命中修复前的坏文件
+          # （标记字命中数：config.yml 15 处 / CODEOWNERS 24 处）。
+          #
+          # 标记字符码位（便于以后维护与扩展）：
+          #   瀹U+7039 夊U+590A 叏U+53CF 婕U+5A55 忔U+5FD4 礊U+790A
+          #   锛U+951B 堣U+5823 鍕U+9355 鐨U+9428 浜U+6D5C 璺U+7490
+          #   鐢U+9602 涓U+6EA2 鍒U+6C11 锛U+9429 鏃U+93AF
+          # ⚠️ 若将来出现新的损坏模式，在下面 for 循环的标记字列表里追加即可。
+          #    注意：匹配必须是「字面子串」，不要写成 ["$markers"] ——
+          #    方括号在 bash 里是字符类，会按**字节**逐一匹配，导致几乎每个
+          #    中文文件都误报（已实测踩过这个坑）。
+
+          # U+FFFD 的 UTF-8 编码为 EF BF BD（bash 内建字符串匹配按字节比较）。
+          fffd=$'\xef\xbf\xbd'
+
+          failed=0
+          checked=0
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              *.png|*.jpg|*.jpeg|*.gif|*.ico|*.zip|*.gz|*.pdf|*.dll|*.exe|*.lib|*.pdb|*.7z|*.pak) continue ;;
+            esac
+            checked=$((checked + 1))
+
+            if ! iconv -f UTF-8 -t UTF-8 "$f" >/dev/null 2>&1; then
+              echo "::error file=$f::不是合法 UTF-8。请用 UTF-8（无 BOM）重新保存。"
+              failed=1
+              continue
+            fi
+
+            content="$(<"$f")"
+
+            # U+FFFD 检测需要剥掉 BOM（BOM 本身以 EF BB 开头，误匹配修复字符）。
+            if [[ "${content#$'\xef\xbb\xbf'}" == *"$fffd"* ]]; then
+              echo "::error file=$f::包含 U+FFFD 替换字符，说明存在非法或损坏的字节序列。"
+              failed=1
+              continue
+            fi
+
+            # 用「字面子串」检测标记字。
+            # 唯一豁免：本工作流自身——它的说明文字里必须写出这些标记字，
+            # 所以只对它跳过注释行，其他文件（含注释）全部检查。
+            hits=0
+            if [[ "$f" == ".github/workflows/repo-integrity.yml" ]]; then
+              scan="$(grep -vE '^[[:space:]]*#' "$f" || true)"
+            else
+              scan="$content"
+            fi
+            while IFS= read -r line; do
+              for m in 瀹 夊 叏 婕 忔 礊 锛 堣 鍕 鐨 浜 璺 鐢 涓 鍒 鏃; do
+                if [[ "$line" == *"$m"* ]]; then
+                  hits=$((hits + 1))
+                  break
+                fi
+              done
+            done <<< "$scan"
+
+            if [[ $hits -gt 0 ]]; then
+              echo "::error file=$f::检测到编码损坏残留（GBK 误码，例如 瀹夊叏 / 鐨 / 浜），命中 $hits 行。请用 UTF-8 重写该文件的文本内容。"
+              failed=1
+            fi
+          done < <(git ls-files -z)
+
+          if [[ $failed -eq 0 ]]; then
+            echo "✅ 已检查 $checked 个已跟踪文本文件，编码正常（UTF-8，无 GBK 残留）。"
+          fi
+          exit $failed
+
+      - name: 校验 CODEOWNERS 格式
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          f=.github/CODEOWNERS
+          if [[ ! -f $f ]]; then
+            echo "::error::$f 缺失。AI-C3 审计代码 / AI-C1 密码学代码的写入隔离依赖它。"
+            exit 1
+          fi
+
+          failed=0
+          lineno=0
+
+          # 逐行带行号检查，便于 GitHub 精确报位置。
+          while IFS= read -r line; do
+            lineno=$((lineno + 1))
+            trimmed="${line#"${line%%[![:space:]]*}"}"
+            [[ -z "$trimmed" || "${trimmed:0:1}" == "#" ]] && continue
+            if [[ $line =~ ^[[:space:]] ]]; then
+              echo "::error file=$f,line=$lineno::规则行不得缩进：$line"
+              failed=1
+            fi
+            if [[ "$trimmed" != *"@"* ]]; then
+              echo "::error file=$f,line=$lineno::规则行缺少所有者（@owner 或 @org/team）：$line"
+              failed=1
+            fi
+          done < "$f"
+
+          # 注释之外的规则行数不得为 0，且必须覆盖审计与密码学路径。
+          # 注意：grep 无匹配时退出码为 1，在 set -e / pipefail 下必须兜住。
+          patterns=$(grep -vE '^[[:space:]]*(#|$)' "$f" | wc -l | tr -d ' ' || true)
+          echo "有效规则行：$patterns"
+          if [[ "$patterns" -eq 0 ]]; then
+            echo "::error file=$f::没有任何有效规则行。"
+            failed=1
+          fi
+
+          for p in '/mod/security/crypto/' '/docs/audit/' '/tools/audit/' '/docs/pentest/'; do
+            if ! grep -qF "$p" "$f"; then
+              echo "::error file=$f::缺少必需的所有权条目 $p（任务书 §48）。"
+              failed=1
+            fi
+          done
+
+          if [[ $failed -eq 0 ]]; then
+            echo "✅ CODEOWNERS 格式正常（$patterns 条规则，审计/密码学路径齐全）。"
+          fi
+          exit $failed
