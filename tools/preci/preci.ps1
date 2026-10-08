@@ -21,10 +21,14 @@
     3. Never pass silently: an unrunnable check is SKIP and is counted as
        UNVERIFIED, never as a pass.
 
-  NOTE ON ENCODING: this file is intentionally pure ASCII. All human-readable
-  (Chinese) text lives in tools/preci/messages.json and is loaded with an
-  explicit UTF-8 reader. Windows PowerShell 5.1 decodes a BOM-less file using
-  the ANSI codepage, which would corrupt non-ASCII literals in this file.
+  NOTE ON ENCODING: this file is UTF-8 **with a BOM**, and must stay that way.
+  (An earlier version was pure ASCII and said so; Chinese literals were added
+  later, so that claim is no longer true.) Windows PowerShell 5.1 decodes a
+  BOM-less file using the ANSI codepage (GBK here), which turns every Chinese
+  literal into mojibake and can break parsing outright:
+      Unexpected token '[鏈塢' in expression or statement
+  If a tool rewrites this file without the BOM, re-add it before committing --
+  tools/preci/check_style.py or a plain `python -c` one-liner will do.
 
 .PARAMETER Stage
   1 or 2. Default 1.
@@ -39,7 +43,11 @@
   PR number. Fetches body and labels from the GitHub API (needs a token).
 
 .PARAMETER Strict
-  Treat SKIP as failure.
+  Treat SKIP as failure (exit 2).
+
+.PARAMETER AllowSkip
+  Treat SKIP as acceptable and exit 0. Default is the opposite: a SKIP yields
+  exit 2, so that "did not check" is never confused with "checked and fine".
 
 .EXAMPLE
   powershell -NoProfile -File tools/preci/preci.ps1
@@ -55,6 +63,10 @@ param(
     [string]$PrBody,
     [int]$Pr = 0,
     [switch]$Strict,
+    # Treat SKIP as acceptable and return 0. The default is the opposite on
+    # purpose: "did not check" must never look like "checked and fine", so a SKIP
+    # yields exit 2 unless this flag is given.
+    [switch]$AllowSkip,
     # Run against another working tree. Used by the negative-case tests so the
     # checks themselves are exercised, instead of a re-implementation drifting.
     [string]$Repo
@@ -161,9 +173,26 @@ function Invoke-Bash {
 }
 
 function Get-ChangedFiles {
-    $r = @(git diff --name-only "$Base...HEAD" 2>$null | Where-Object { $_ -and $_.Trim() })
-    if ($r.Count -eq 0) { $r = @(git diff --name-only $Base 2>$null | Where-Object { $_ -and $_.Trim() }) }
-    return $r
+    # -c core.quotepath=false is REQUIRED. With git's default (true) a non-ASCII
+    # path is rendered as octal escapes inside quotes:
+    #     "docs/standards/\345\217\202..." 
+    # The write-scope prefix match then fails and reports a bogus out-of-scope
+    # file. Measured with a Chinese filename in docs/standards/.
+    # The quote-stripping is defensive: git still quotes paths containing unusual
+    # characters even with quotepath=false.
+    $g = @('-c', 'core.quotepath=false', 'diff', '--name-only')
+    $r = @(git @g "$Base...HEAD" 2>$null)
+    if (-not $r -or $r.Count -eq 0) { $r = @(git @g $Base 2>$null) }
+    $out = @()
+    foreach ($f in $r) {
+        if (-not $f) { continue }
+        $s = $f.Trim()
+        if ($s.Length -ge 2 -and $s.StartsWith('"') -and $s.EndsWith('"')) {
+            $s = $s.Substring(1, $s.Length - 2)
+        }
+        if ($s) { $out += $s }
+    }
+    return $out
 }
 
 function Get-HeadRef {
@@ -704,12 +733,17 @@ if ($script:Unverified.Count -gt 0) {
     $script:Unverified | ForEach-Object { Write-Host "    - $_" -ForegroundColor Yellow }
 }
 
+# Exit codes carry meaning, not just 0/1. A caller (a human, a script, a teammate)
+# should be able to tell "failed" apart from "could not verify" without reading text.
+#   0 = pass
+#   1 = real failure(s) -- fix them
+#   2 = passed, but something was NOT VERIFIED (SKIP), or a requested stage could
+#       not run. This is deliberately distinct from 0: treating "did not check" as
+#       "checked and fine" is how false confidence is manufactured.
+#   3 = could not start (bad arguments / missing environment)
 $exit = 0
 if ($script:Fail -gt 0) { $exit = 1 }
-elseif ($Strict -and $script:Skip -gt 0) { $exit = 2 }
-# Stage 2 was explicitly asked for but could not run (no PR body / no token /
-# API failure). That is NOT a pass: reporting success would let a PR be declared
-# "pre-checked" while the stage-2 gates were never evaluated.
+elseif ($script:Skip -gt 0 -and (-not $AllowSkip -or $Strict)) { $exit = 2 }
 elseif ($Stage -ge 2 -and (-not $PrBody -or -not (Test-Path $PrBody))) { $exit = 2 }
 
 Write-Host ''
