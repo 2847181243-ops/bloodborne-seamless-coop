@@ -434,6 +434,65 @@ jobs:
               failed=1
             fi
 
+            # ── 可核对证据 ──────────────────────────────────────────────
+            # 旧实现只验格式：报告存在 + 结论行合法 + 双人签名。
+            # **结论是否属实，完全没有验证。** 编一段话加两个签名即可通过。
+            #
+            # 要求每条证据给出被检文件的路径与其 sha256，门禁**重算并比对**。
+            # 为什么这能提高可信度：写一个错的哈希需要真的去算过哈希，
+            # 而算哈希的前提是文件确实在手边被检查过；随手编一段话不会带上它。
+            # 这不是证明（哈希可以抄），但它把"零成本伪造"变成了"必须接触真实文件"。
+            # 格式：  证据：<仓库内相对路径> | sha256=<64位十六进制> | <查了什么>
+            ev_lines=$(printf '%s\n' "$content" \
+              | grep -E '^[[:space:]]*[-*][[:space:]]*证据[[:space:]]*[:：]' || true)
+            ev_count=$(printf '%s\n' "$ev_lines" | grep -c . || true)
+            if [[ "${ev_count:-0}" -eq 0 ]]; then
+              echo "::error file=$rf::缺少可核对证据。每条结论至少要有 1 行「- 证据：<文件> | sha256=<哈希> | <查了什么>」。只写结论不等于有证据。"
+              failed=1
+            else
+              ev_ok=0
+              # 用 while read 而非 for，避免路径中的空白被拆散
+              while IFS= read -r line; do
+                [[ -z "$line" ]] && continue
+                body=${line#*证据}
+                body=${body#*[:：]}
+                # 取第一个字段作为路径（用 | 分隔）
+                ev_path=$(printf '%s' "$body" | awk -F'|' '{print $1}' \
+                  | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+                ev_hash=$(printf '%s' "$body" | grep -oE 'sha256=[0-9a-fA-F]{64}' \
+                  | head -1 | cut -d= -f2 || true)
+                if [[ -z "$ev_path" ]]; then
+                  echo "::error file=$rf::证据行缺少文件路径：$(printf '%s' "$line" | cut -c1-80)"
+                  failed=1; continue
+                fi
+                if [[ -z "$ev_hash" ]]; then
+                  echo "::error file=$rf::证据行缺少 sha256=<64 位十六进制>：$ev_path"
+                  failed=1; continue
+                fi
+                if [[ ! -f "$ev_path" ]]; then
+                  echo "::error file=$rf::证据指向的文件不存在：$ev_path（必须是仓库内的真实文件）"
+                  failed=1; continue
+                fi
+                # 被检文件必须在本 PR 的改动范围内，防止拿一个无关的稳定文件凑证据
+                # （`files` 是本步骤开头用 git diff 取到的改动清单）
+                if ! printf '%s\n' "${files[@]}" | grep -qxF "$ev_path"; then
+                  echo "::error file=$rf::证据指向的 $ev_path 不在本 PR 的改动范围内 —— 证据必须针对本次改动。"
+                  failed=1; continue
+                fi
+                actual=$(sha256sum "$ev_path" | cut -d' ' -f1)
+                if [[ "$(printf '%s' "$ev_hash" | tr 'A-Z' 'a-z')" != "$actual" ]]; then
+                  echo "::error file=$rf::证据哈希不符：$ev_path 实际为 $actual，报告写的是 $ev_hash。要么文件在报告之后被改过，要么哈希是编的。"
+                  failed=1; continue
+                fi
+                echo "  ✅ 证据核对通过：$ev_path"
+                ev_ok=$((ev_ok + 1))
+              done <<< "$ev_lines"
+              if [[ "$ev_ok" -eq 0 ]]; then
+                echo "::error file=$rf::没有任何一条证据通过核对。"
+                failed=1
+              fi
+            fi
+
             # ── 双人独立签核 ────────────────────────────────────────────
             # 只在「双人」标题之后的**当前区段**内解析（到下一个同级/更高级标题为止），
             # 且每个角色**恰好一条**结论行。
