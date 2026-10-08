@@ -33,6 +33,12 @@ description: 本仓库的 GitHub 自动化运维手册——标签唯一来源�
 > 审计门禁**不再只看标签**：带 `audit:passed`/`audit:warning` 的同时，本 PR 必须
 > 新增 `docs/audit/audit_<模块>_<YYYYMMDD>.md`，且其中「结论」须与标签一致
 > （`audit:passed`→`PASS`，`audit:warning`→`PASS_WITH_WARNING`）、「审计对象」非空。
+>
+> 此外还强制**双人独立签核**（C3-a 密码学/协议/完整性、C3-b 隐私/中继/抗滥用）：
+> 每个角色条目后须紧跟一行 `结论：<值>`，取值须与标签一致，任一方缺失或不一致即阻断。
+> 详见 `CONTRIBUTING.md` 第 5.1 节与 `docs/audit/README.md`。
+> **该机制是文本层强制，不是 GitHub 平台级双人审批**（个人账号 + 单账号 CODEOWNERS
+> 无法强制两名审批人），不得对外表述为平台级保证。
 
 `build.yml` 在仓库没有 `CMakeLists.txt` 时走「无代码时的说明」步骤并判通过，有代码后自动在 `windows-latest` 上编译（**单一 job，上下文名恒定**）。
 另有 `labels.yml`（标签同步）与 `issue-triage.yml`（Issue 自动标注路由）。
@@ -47,11 +53,34 @@ description: 本仓库的 GitHub 自动化运维手册——标签唯一来源�
 > `administration:write` 权限**，deploy key（只能读写 git 对象）做不到。
 >
 > 注意：本仓库**已建立规则集 `main-protection`（id 24735428，enforcement=active）**，
-> 作用于 `refs/heads/main`，含 `deletion` + `non_fast_forward` + `pull_request` +
-> `required_status_checks`（strict）。`pull_request` 规则刻意设
+> 作用于 `refs/heads/main`，含 `deletion` + `non_fast_forward` + `required_linear_history`
+> + `pull_request` + `required_status_checks`（strict）。`pull_request` 规则刻意设
 > `required_approving_review_count=0` 与 `require_code_owner_review=false`，
 > 因为 CODEOWNERS 是单账号，开启后**作者无法合并自己的 PR**。
 > 查询/修改变更见本文件第 4 节的 API 示例。
+>
+> ### ⚠️ 两条实测过的坑（都踩过，勿重蹈）
+>
+> **1) 规则集确实会拦 REST API 的 ref 更新，但"快进"绕得过 `non_fast_forward`。**
+> 实测：对 `refs/heads/probe-*` 施加 `non_fast_forward` 后，
+> `PATCH /git/refs/heads/probe-*` 返回 `422 Repository rule violations found /
+> Cannot force-push to this branch` —— 说明 API 路径受规则约束。
+> **但** `PATCH /git/refs/heads/main` 指向某 PR 的 head 是**快进**，
+> `non_fast_forward` 不适用；又因 `required_approving_review_count=0`，
+> GitHub 将其识别为「合并该 PR」从而满足 `pull_request` 规则。
+> 后果：一次 `PATCH` 就把 PR 合并进了 main，绕过合并按钮。
+> ⇒ **严禁用 `PATCH /git/refs/heads/<受保护分支>` 做任何"试探"**；
+> 想把"必须走 PR"变成硬约束，需把审批数提到 ≥1（要求有第二名协作者）。
+>
+> **2) 合并策略：squash-only + 线性历史。**
+> `allow_squash_merge=true, allow_merge_commit=false, allow_rebase_merge=false,
+> allow_auto_merge=true, delete_branch_on_merge=true`；
+> 规则集另含 `required_linear_history`，且 `allowed_merge_methods=['squash']`。
+> ⇒ 合并后的 main 提交信息**取 PR 标题**，所以 **PR 标题必须符合
+> `CONTRIBUTING.md` 第 3 节的 `<scope>: <subject>` 规范**；
+> PR 内部各条提交信息不进 main 历史。
+> `strict=true` 意味着分支落后 main 时必须先同步，否则必需检查不计入。
+
 
 ### 必须设为必需的检查上下文（与 job `name:` 逐字一致）
 
