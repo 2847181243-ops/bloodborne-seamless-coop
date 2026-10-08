@@ -75,29 +75,37 @@ TOKEN_PATH = os.path.join(os.path.expanduser("~"), ".config", "dsh", "token.txt"
 
 
 def have(cap):
-    """Return (ok, reason)."""
+    """Return (ok, kind, reason).
+
+    `kind` decides how a missing capability is REPORTED:
+      "env"        -- this environment legitimately does not have it, so skipping
+                      is expected and does not make the run unverified.
+                      e.g. a Windows-only suite on the Linux runner.
+      "unverified" -- we expected it here and it is absent, so the run is
+                      unverified (exit 2). e.g. PyYAML failed to install.
+    """
     if cap is None:
-        return True, ""
+        return True, "", ""
     if cap == "windows":
         if not sys.platform.startswith("win"):
-            return False, f"本套件需要 Windows（当前 {sys.platform}）"
-        return True, ""
+            return False, "env", f"本套件需要 Windows（当前 {sys.platform}）"
+        return True, "", ""
     if cap == "bash":
         ok = os.path.isfile(P.BASH)
-        return ok, "" if ok else f"找不到 bash（试过 {P.BASH}）"
+        return ok, "unverified", "" if ok else f"找不到 bash（试过 {P.BASH}）"
     if cap == "powershell":
         host = P._find_powershell()
-        return bool(host), "" if host else "找不到 PowerShell（powershell.exe 与 pwsh 都没有）"
+        return bool(host), "unverified", "" if host else "找不到 PowerShell（powershell.exe 与 pwsh 都没有）"
     if cap == "yaml":
         try:
             import yaml  # noqa: F401
-            return True, ""
+            return True, "", ""
         except ImportError:
-            return False, "没装 PyYAML（workflow 结构检查会返回 SKIP）"
+            return False, "unverified", "没装 PyYAML（workflow 结构检查会返回 SKIP）"
     if cap == "github_token":
         ok = os.path.isfile(TOKEN_PATH)
-        return ok, "" if ok else f"没有本地 GitHub token（{TOKEN_PATH}）"
-    return True, ""
+        return ok, "env", "" if ok else f"没有本地 GitHub token（{TOKEN_PATH}）"
+    return True, "", ""
 
 
 def main():
@@ -115,15 +123,19 @@ def main():
         print()
         print(f"── {label}  ({mod_name}) " + "─" * max(0, 40 - len(label)))
 
-        ok, why = have(need)
+        ok, kind, why = have(need)
         if not ok:
-            print(f"  [跳过·未验证] {why}")
-            results.append((label, "skip_unverified", why))
+            if kind == "env":
+                print(f"  [跳过·环境不具备] {why}")
+                results.append((label, "skip_env", why))
+            else:
+                print(f"  [跳过·未验证] {why}")
+                results.append((label, "skip_unverified", why))
             continue
 
         blocked = ""
         for opt in opt_needs:
-            ook, owhy = have(opt)
+            ook, _okind, owhy = have(opt)
             if not ook:
                 blocked = owhy
                 break
