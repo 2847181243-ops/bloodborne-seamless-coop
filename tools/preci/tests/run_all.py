@@ -20,6 +20,23 @@ import os
 import sys
 import traceback
 
+# Force UTF-8 for this process AND for every subprocess it starts.
+#
+# Why: on the windows-latest runner Python's default stdout encoding is cp1252, and
+# printing Chinese raised
+#     UnicodeEncodeError: 'charmap' codec can't encode characters ... character maps to <undefined>
+# Setting it here (before the imports that use it) means the suite works regardless
+# of how it was invoked, instead of depending on workflow-level env vars that a
+# future edit could drop. The child processes matter too: `preci.ps1` prints Chinese
+# and would otherwise fail to encode into the pipe.
+os.environ.setdefault("PYTHONUTF8", "1")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _paths as P  # noqa: E402
 
@@ -34,8 +51,15 @@ import _paths as P  # noqa: E402
 # Why the distinction matters: treating "no GitHub token on a CI runner" the same as
 # "PyYAML failed to install" would make CI permanently red for a non-problem, and
 # people would then learn to ignore red CI.
+#
+# `needs="windows"` marks a suite that drives tools/preci/preci.ps1, which targets
+# **Windows PowerShell 5.1**. Running it under pwsh on Linux produced subtle
+# mismatches (a case stopped being detected), and it is not worth maintaining two
+# behaviours: the script's real consumers are on Windows. Instead of guessing which
+# suites are portable, each one DECLARES its requirement and the runner skips what
+# does not apply here -- so the platform split stays correct by itself.
 SUITES = [
-    ("test_preci_negative", "本地预检 · 负例矩阵", "powershell", ()),
+    ("test_preci_negative", "本地预检 · 负例矩阵", "windows", ()),
     ("test_build_std", "编译标准防削弱", None, ()),
     ("test_pg_strict", "PR 描述严格矩阵", None, ()),
     ("test_bp2", "分支与写入范围矩阵", None, ()),
@@ -43,9 +67,8 @@ SUITES = [
     ("test_audit_evidence", "审计证据核对", "bash", ()),
     ("wf_syntax", "workflow 语法", None, ()),
     ("validate_wf_yaml", "workflow 结构", "yaml", ()),
-    # Drives preci.ps1 AND calls the GitHub API, so it needs a local token.
-    # CI has no such token; the suite is expected to be skipped there.
-    ("test_level_fix", "验证等级判定", "powershell", ("github_token",)),
+    # Drives preci.ps1 AND calls the GitHub API, so it also needs a local token.
+    ("test_level_fix", "验证等级判定", "windows", ("github_token",)),
 ]
 
 TOKEN_PATH = os.path.join(os.path.expanduser("~"), ".config", "dsh", "token.txt")
@@ -54,6 +77,10 @@ TOKEN_PATH = os.path.join(os.path.expanduser("~"), ".config", "dsh", "token.txt"
 def have(cap):
     """Return (ok, reason)."""
     if cap is None:
+        return True, ""
+    if cap == "windows":
+        if not sys.platform.startswith("win"):
+            return False, f"本套件需要 Windows（当前 {sys.platform}）"
         return True, ""
     if cap == "bash":
         ok = os.path.isfile(P.BASH)

@@ -70,8 +70,14 @@ def run_ps(args, timeout=None):
     if not host:
         return None, "找不到 PowerShell（powershell.exe 与 pwsh 都没有）"
     cmd = [host, "-NoProfile", "-ExecutionPolicy", "Bypass"] + list(args)
+    # Force UTF-8 in the child too. On the windows-latest runner the default console
+    # codepage is cp1252, so a child that prints Chinese dies with
+    # UnicodeEncodeError and the suite fails for a reason unrelated to what it tests.
+    env = dict(os.environ)
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=timeout, cwd=ROOT)
+                       errors="replace", timeout=timeout, cwd=ROOT, env=env)
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
