@@ -17,7 +17,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REPO = P.ROOT
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "branch-policy.yml")
 BASH = P.BASH
-REAL_GIT = r"C:\Program Files\Git\cmd\git.exe"
+REAL_GIT = P.GIT
 
 lines = open(WORKFLOW, encoding="utf-8").read().split("\n")
 bodies, cur, pending = [], None, False
@@ -64,7 +64,7 @@ git_shim = os.path.join(SHIM, "git")
 open(git_shim, "w", encoding="utf-8", newline="\n").write(
     f"""#!/usr/bin/env bash
 if [[ "$1" == "fetch" ]]; then exit 0; fi
-exec "{REAL_GIT.replace(chr(92), '/')}" "$@"
+exec "{REAL_GIT.replace(chr(92), "/")}" "$@"
 """)
 os.chmod(git_shim, os.stat(git_shim).st_mode | stat.S_IEXEC)
 

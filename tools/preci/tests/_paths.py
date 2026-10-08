@@ -72,7 +72,25 @@ def _find_bash():
     return found or "bash"
 
 
+def _find_git():
+    """Locate git portably.
+
+    Two suites hardcoded `C:\\Program Files\\Git\\cmd\\git.exe` as REAL_GIT. That
+    passed locally and failed on the ubuntu runner with
+        FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe'
+    The CI run is what surfaced it -- which is exactly why these suites belong in CI.
+    """
+    import shutil
+    for p in (r"C:\Program Files\Git\cmd\git.exe",
+              r"C:\Program Files (x86)\Git\cmd\git.exe"):
+        if os.path.isfile(p):
+            return p
+    found = shutil.which("git")
+    return found or "git"
+
+
 BASH = _find_bash()
+GIT = _find_git()
 
 # ── tiny test-framework ─────────────────────────────────────────────────────
 # Kept deliberately small: no dependency to install, identical output shape across

@@ -33,7 +33,7 @@ if REF:
 else:
     WORKFLOW = P.path(".github", "workflows", "pr-guard.yml")
 BASH = P.BASH
-REAL_GIT = r"C:\Program Files\Git\cmd\git.exe"
+REAL_GIT = P.GIT
 
 lines = open(WORKFLOW, encoding="utf-8").read().split("\n")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

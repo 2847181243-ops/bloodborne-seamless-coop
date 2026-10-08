@@ -19,7 +19,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 SRC = P.ROOT
 PRECI = os.path.join(SRC, "tools", "preci", "preci.ps1")
 PS = "powershell.exe"
-GIT = r"C:\Program Files\Git\cmd\git.exe"
+GIT = P.GIT
 
 
 def run(args, cwd):
