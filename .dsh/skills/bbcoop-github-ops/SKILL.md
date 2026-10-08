@@ -96,30 +96,54 @@ gh workflow run labels.yml
 
 ## 5. 首次推送（还没做完的部分）
 
-仓库已 init、已提交、13 条 `agent/*` 分支已建，**缺 remote 与凭据**。
+**当前状态：remote、提交身份、占位符均已接线完成。**
+
+```text
+origin     = git@github-bbcoop:2847181243-ops/bloodborne-seamless-coop.git
+user.name  = 2847181243-ops
+user.email = 2847181243-ops@users.noreply.github.com
+认证方式    = SSH deploy key（ED25519，私钥 ~/.ssh/id_ed25519_bbcoop）
+```
+
+### ⚠️ 本机必须走 `ssh.github.com:443`，不能用 `github.com:22`
+
+本机 hosts 被 **Steam++（Watt Toolkit）** 劫持：`github.com` / `api.github.com` /
+`*.githubusercontent.com` 全部指向 `127.0.0.1`，而本机 22 端口跑着 Windows OpenSSH Server。
+直接 `ssh git@github.com` 会连到**本机 sshd**，拿到它的主机密钥
+（`SHA256:sM3CgwfaYH312L5+uAsNq4EZAMk4mjoRyHy06yjN5Mc`）而不是 GitHub 的。
+
+```text
+Host github-bbcoop
+    HostName ssh.github.com     # 不在 hosts 劫持列表，解析到真实 GitHub
+    Port 443                    # 绕开被本机 sshd 占用的 22
+    User git
+    IdentityFile ~/.ssh/id_ed25519_bbcoop
+    IdentitiesOnly yes
+    StrictHostKeyChecking yes
+```
+
+`known_hosts` 必须使用 **GitHub 官方公布**的密钥（GitHub Docs → *SSH key fingerprints*），
+**不要**用 `StrictHostKeyChecking accept-new` —— 在劫持环境下 TOFU 会把本机 sshd 的
+密钥固化进 known_hosts，之后既验不过真 GitHub，也失去告警意义。
+
+### ⚠️ HTTPS 路径不可用于认证
+
+`Steam++.Accelerator` 监听 `0.0.0.0:443` 做 TLS 中间人，根证书
+`CN=SteamTools Certificate, O=BeyondDimension` 已装入 `LocalMachine\Root`。
+走 HTTPS 的一切凭据对它可见：Git 自带 openssl CA bundle 会报
+`unable to get local issuer certificate`；改用 `git config http.sslBackend schannel`
+能"修好"，但**那正是信任了中间人**。**认证一律走 SSH。**
+
+### 推送
 
 ```bash
-git remote add origin git@github.com:<OWNER>/<REPO>.git   # 或 https://github.com/...
-git commit --amend --reset-author --no-edit                # 若换了提交身份
 git push -u origin main
-git push origin --all                                      # 推 13 条 agent/* 分支
+git push origin --all      # 13 条 agent/* 分支
 ```
 
-**推送前必须替换的占位符**
-
-| 文件 | 占位符 | 处数 |
-|---|---|---|
-| `.github/CODEOWNERS` | `@YOUR_GITHUB_USERNAME` | 28 |
-| `.github/ISSUE_TEMPLATE/config.yml` | `YOUR_GITHUB_USERNAME/REPO_NAME` | 3 |
-
-```powershell
-# 替换示例（先确认 OWNER 正确再执行）
-$o='<OWNER>'; $r='bloodborne-seamless-coop'
-(Get-Content .github\CODEOWNERS -Raw) -replace '@YOUR_GITHUB_USERNAME', "@$o" |
-  Set-Content .github\CODEOWNERS -NoNewline -Encoding UTF8
-(Get-Content .github\ISSUE_TEMPLATE\config.yml -Raw) -replace 'YOUR_GITHUB_USERNAME/REPO_NAME', "$o/$r" |
-  Set-Content .github\ISSUE_TEMPLATE\config.yml -NoNewline -Encoding UTF8
-```
+> 建仓库时若勾了 "Add a README"，远端会有一个与本地**无共同祖先**的 `Initial commit`，
+> 直接 push 会被拒。处理方式：`git fetch origin main` 后
+> `git rebase -X theirs origin/main main`（README 冲突取本地版本）。
 
 ---
 
