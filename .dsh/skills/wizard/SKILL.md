@@ -3,6 +3,12 @@ name: wizard
 description: Generate an interactive bash wizard that walks a human through steps only they can perform. Use when provisioning infrastructure, setting up credentials or CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migration or cutover. Don't invoke this for steps the agent can perform itself.
 ---
 
+> **权威性：非权威（第三方，上游未修改内容的通用工程流程 skill）。**
+> 本仓库的权威来源是 `.dsh/skills/bbcoop-*`（项目规约）与任务书 `bloodbrone.markdown`。
+> **冲突时以 bbcoop-* 与任务书为准**；本 skill 不得覆盖、放宽或替代其中任何强制条款
+> （例如提交信息格式、合并方式、状态检查名、`docs/audit/` 双人签核、隐私红线）。
+> 来源与许可见 `.dsh/skills/THIRD-PARTY-mattpocock-skills.md`。
+
 # Wizard
 
 A **wizard** is a bash script that walks a human, step by step, through a manual procedure that's tedious to do by hand and tedious to re-explain to an AI every time. It opens each URL, says exactly what to click and copy, captures the values, writes them where they belong (`.env`, GitHub secrets), confirms at every stage, and shows how many stages are left. It might configure third-party services, run a one-off migration, or move the project from one state to another.

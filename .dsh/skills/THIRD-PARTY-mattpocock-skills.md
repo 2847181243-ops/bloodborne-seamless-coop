@@ -31,15 +31,57 @@
   - `wayfinder`
   - `wizard`
 
-## 搬迁时唯一的结构改动：拍平目录
+## 权威性：**非权威**
+
+```text
+权威性层级（冲突时按此裁决）
+1. bloodbrone.markdown               ← 任务书 v3.0，唯一需求来源（最高）
+2. bbcoop-conventions / bbcoop-re-protocol / bbcoop-github-ops   ← 项目规约
+3. 本目录下引入的第三方工程流程 skill  ← 仅作方法论参考，非权威
+```
+
+本目录的 skill **不得**覆盖、放宽或替代上述任何强制条款。已在这些 skill 的
+`SKILL.md` 正文开头各插入一行 `权威性：非权威` 声明，**随正文一起被加载**，
+因此不依赖任何 agent 主动去读本文件。
+
+本仓库已知与上游存在差异、且**必须以上游为错**的条目：
+
+| 项 | 本仓库（权威） | 上游常见做法 |
+|---|---|---|
+| 提交信息 | `<scope>: <subject>`，scope 为 `a3-gameplay`/`ci` 等 | `type(scope):` |
+| 合并方式 | squash-only + `required_linear_history` | 未限定 |
+| 状态检查 | 硬编码中文上下文名（含全角括号） | 不感知 |
+| 审计 | `docs/audit/` 双人签核（C3-a / C3-b） | 不感知 |
+| 语言栈 | C++ / Windows x64 / MSVC（bbport） | 示例偏 TypeScript / Node |
+
+## 搬迁时做的两处改动
+
+### 1. 拍平目录（结构改动）
 
 DSH 的 skill 发现**深度只有一层**（`<root>/<name>/SKILL.md`），而上游是
-`skills/engineering/<name>/SKILL.md`（两层），因此整体上移一层，其余原样保留。
+`skills/engineering/<name>/SKILL.md`（两层），因此整体上移一层。
 
 > 保留的文件包括各 skill 的配套引用文件（`tdd/mocking.md`、`tdd/tests.md`、
 > `codebase-design/DESIGN-IT-TWICE.md`、`wizard/template.sh` 等）以及
 > `agents/openai.yaml`（面向 Codex / OpenAI harness 的元数据；DSH 不读取，但保留
 > 以便与上游逐文件 diff，不做有损裁剪）。
+
+### 2. 每个 SKILL.md 正文开头插入权威性声明（内容改动）
+
+除拍平目录外，**唯一的正文改动**：在每个引入的 `SKILL.md` 的 frontmatter 之后
+插入如下一行块（共 20 处）：
+
+```text
+> **权威性：非权威（第三方，上游未修改内容的通用工程流程 skill）。**
+> 本仓库的权威来源是 .dsh/skills/bbcoop-*（项目规约）与任务书 bloodbrone.markdown。
+> **冲突时以 bbcoop-* 与任务书为准**；本 skill 不得覆盖、放宽或替代其中任何强制条款
+> （例如提交信息格式、合并方式、状态检查名、docs/audit/ 双人签核、隐私红线）。
+> 来源与许可见 .dsh/skills/THIRD-PARTY-mattpocock-skills.md。
+```
+
+> 为什么改正文而不是只写在本文件里：skill 正文是**被加载进上下文**的那部分，
+> 本 README 不是。只写在 README 会导致「权威性」在真正用到 skill 时不可见。
+> 该插入可重复执行且幂等；重新同步上游时需一并重放。
 
 ## 上游行为已保留：仅手动调用的 skill
 

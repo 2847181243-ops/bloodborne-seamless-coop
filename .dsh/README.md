@@ -34,7 +34,21 @@
 
 ## 本项目的 skill
 
-### 自有 skill（任务书 v3.0 的可执行摘要）
+### 权威性层级（冲突时按此裁决）
+
+```text
+1. bloodbrone.markdown               ← 任务书 v3.0，唯一需求来源（最高）
+2. bbcoop-conventions                ← 协作规约（所有权 / Issue 驱动 / 证据等级 / 安全红线）
+   bbcoop-re-protocol                ← 逆向记录协议
+   bbcoop-github-ops                 ← 仓库运维与门禁
+3. 引入的第三方工程流程 skill         ← 仅作方法论参考，**非权威**
+```
+
+> **第三方 skill 一律非权威。** 它们不得覆盖、放宽或替代上述任何强制条款。
+> 每个引入的 `SKILL.md` 正文开头都带一行 `权威性：非权威` 声明——该声明**随正文一起
+> 被加载**，因此不依赖任何人去读这份 README。
+
+### 自有 skill（任务书 v3.0 的可执行摘要，**权威**）
 
 | Skill | 用途 | 何时加载 |
 |---|---|---|
@@ -44,11 +58,17 @@
 
 > 这三个 skill 是任务书 v3.0 的**可执行摘要**。与 `bloodbrone.markdown` 冲突时**以任务书为准**。
 
-### 引入的通用工程流程 skill（第三方，MIT）
+### 引入的通用工程流程 skill（第三方，MIT，**非权威**）
 
 来自 **[mattpocock/skills](https://github.com/mattpocock/skills)**（"Skills for Real Engineers"），
-上游提交 `b0618bc436ad`，**内容未修改**，仅拍平目录以适配 DSH 的一层扫描。
-来源、许可、同步方式与注意事项见 [`skills/THIRD-PARTY-mattpocock-skills.md`](skills/THIRD-PARTY-mattpocock-skills.md)。
+上游提交 `b0618bc436ad`。**只做了两处改动，正文内容未修改**：
+
+1. **拍平目录** —— 上游是 `skills/engineering/<name>/SKILL.md`（两层），
+   而 DSH 的 skill 发现深度只有一层；
+2. **在每个 `SKILL.md` 正文开头插入一行 `权威性：非权威` 声明**（理由见上方层级说明）。
+
+来源、许可、同步方式与注意事项见
+[`skills/THIRD-PARTY-mattpocock-skills.md`](skills/THIRD-PARTY-mattpocock-skills.md)。
 这 20 个覆盖：`code-review`、`tdd`、`implement`/`implement-spec`、`to-spec`/`to-tickets`、
 `diagnosing-bugs`、`domain-modeling`、`codebase-design`、`improve-codebase-architecture`、
 `research`、`retro`、`triage`、`wayfinder`、`wizard`、`prototype`、`pr`、`ask-matt`、
@@ -60,6 +80,9 @@
 >
 > ⚠️ 上游示例偏 **TypeScript / Node**，本项目是 **C++ / Windows x64 / MSVC**；
 > 语言特定实践不适用，故未引入 `skills/misc/` 与 `skills/in-progress/`。
+>
+> ⚠️ **不要运行 `setup-matt-pocock-skills`**：它会改写本仓库的 issue tracker /
+> triage 标签 / domain 文档布局，而本仓库已有自己的 60 个标签与 4 个 Issue 表单。
 
 > **修改 skill 后必须重跑同步**：增删 skill 或改 `SKILL.md` 会立即刷新会话 skill 目录；
 > 但 skill 目录内的 `references/`、`scripts/`、`assets/` **不被监视**，改动不触发刷新。

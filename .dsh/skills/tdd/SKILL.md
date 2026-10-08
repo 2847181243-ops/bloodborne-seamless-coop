@@ -3,6 +3,12 @@ name: tdd
 description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests.
 ---
 
+> **权威性：非权威（第三方，上游未修改内容的通用工程流程 skill）。**
+> 本仓库的权威来源是 `.dsh/skills/bbcoop-*`（项目规约）与任务书 `bloodbrone.markdown`。
+> **冲突时以 bbcoop-* 与任务书为准**；本 skill 不得覆盖、放宽或替代其中任何强制条款
+> （例如提交信息格式、合并方式、状态检查名、`docs/audit/` 双人签核、隐私红线）。
+> 来源与许可见 `.dsh/skills/THIRD-PARTY-mattpocock-skills.md`。
+
 # Test-Driven Development
 
 TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop. Every section applies on every cycle: consult them before and during the loop, not after.

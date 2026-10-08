@@ -3,6 +3,12 @@ name: code-review
 description: "Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/spec asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to \"review since X\"."
 ---
 
+> **权威性：非权威（第三方，上游未修改内容的通用工程流程 skill）。**
+> 本仓库的权威来源是 `.dsh/skills/bbcoop-*`（项目规约）与任务书 `bloodbrone.markdown`。
+> **冲突时以 bbcoop-* 与任务书为准**；本 skill 不得覆盖、放宽或替代其中任何强制条款
+> （例如提交信息格式、合并方式、状态检查名、`docs/audit/` 双人签核、隐私红线）。
+> 来源与许可见 `.dsh/skills/THIRD-PARTY-mattpocock-skills.md`。
+
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 
 - **Standards**: does the code conform to this repo's documented coding standards?

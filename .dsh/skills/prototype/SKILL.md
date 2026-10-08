@@ -3,6 +3,12 @@ name: prototype
 description: Build a throwaway prototype to answer a design question. Use when the user wants to sanity-check whether a state model or logic feels right, or explore what a UI should look like.
 ---
 
+> **权威性：非权威（第三方，上游未修改内容的通用工程流程 skill）。**
+> 本仓库的权威来源是 `.dsh/skills/bbcoop-*`（项目规约）与任务书 `bloodbrone.markdown`。
+> **冲突时以 bbcoop-* 与任务书为准**；本 skill 不得覆盖、放宽或替代其中任何强制条款
+> （例如提交信息格式、合并方式、状态检查名、`docs/audit/` 双人签核、隐私红线）。
+> 来源与许可见 `.dsh/skills/THIRD-PARTY-mattpocock-skills.md`。
+
 # Prototype
 
 A prototype is **throwaway code that answers a question**. The question decides the shape.
