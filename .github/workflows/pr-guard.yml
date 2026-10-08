@@ -189,16 +189,38 @@ jobs:
           done
 
           # ── A. 验证等级：必须且只能勾一个（§39 五级链路）──────────────
+          # 作者可能把等级勾在「如何验证」，也可能写在「当前验证等级」正文里
+          # （模板两者都有）。因此做两级回退：先看勾选，再看正文里的等级关键字。
+          # 只认勾选会误伤「按另一种同样合法的填法提交」的 PR（实测踩过：本门禁拦下
+          # 了它自己的 PR，因为该 PR 把等级写在「当前验证等级」正文里）。
+          LEVELS=("Compile Verified" "Runtime Verified" "Multiplayer Verified"
+                  "Regression Verified" "Feature Verified")
           vl=$(checked "如何验证")
-          if [[ "${vl:-0}" -eq 0 ]]; then
-            echo "::error::「如何验证」未勾选任何验证等级。任务书 §39 要求声明本 PR 达到的验证等级。"
+          if [[ "${vl:-0}" -gt 1 ]]; then
+            echo "::error::「如何验证」勾选了 $vl 个验证等级 —— 必须且只能声明 1 个（§39 不允许跳级/并列声明）。"
             failed=1
-          elif [[ "$vl" -gt 1 ]]; then
-            echo "::error::「如何验证」勾选了 $vl 个验证等级 —— 必须且只能勾 1 个（§39 不允许跳级/并列声明）。"
-            failed=1
-          else
+          elif [[ "${vl:-0}" -eq 1 ]]; then
             lvl=$(section_content "如何验证" | grep -E '\[[xX]\]' | head -1)
-            echo "✅ 验证等级：$(printf '%s' "$lvl" | sed 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*//')"
+            echo "✅ 验证等级（勾选）：$(printf '%s' "$lvl" | sed 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*//')"
+          else
+            vlvl_text=$(section_content "当前验证等级")
+            found=""
+            n=0
+            for L in "${LEVELS[@]}"; do
+              if printf '%s' "$vlvl_text" | grep -qF "$L"; then
+                found="$L"
+                n=$((n + 1))
+              fi
+            done
+            if [[ "$n" -eq 0 ]]; then
+              echo "::error::未声明验证等级。请在「如何验证」勾选 1 个等级，或在「当前验证等级」写明其中之一：${LEVELS[*]}（任务书 §39）。"
+              failed=1
+            elif [[ "$n" -gt 1 ]]; then
+              echo "::error::「当前验证等级」写明了 $n 个等级 —— 必须且只能声明 1 个（§39 不允许并列声明）。"
+              failed=1
+            else
+              echo "✅ 验证等级（正文）：$found"
+            fi
           fi
 
           # ── B. 证据等级：改动触及 docs/re/ 或 mod/core/ 时必须勾（§4）───
