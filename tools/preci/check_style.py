@@ -191,13 +191,22 @@ def check_editorconfig(name, data, errors):
 # Heuristic: a commented-out LINE OF CODE. Deliberately conservative -- it must
 # look like code, not like prose. Every pattern is anchored so that a sentence
 # ending in a period is never mistaken for code.
+#
+# NOTE: re.M is required. With plain re.match() the `^` anchor matches only the
+# START OF THE WHOLE STRING, so the loop below ran on line 1 and nothing else --
+# 20 lines of commented-out code sailed straight through. Found by the negative
+# matrix, not by reading the code.
 CODE_LIKE = [
     re.compile(r"^\s*//\s*(if|else|for|while|switch|case|return|break|continue|"
-               r"goto|try|catch|throw|do)\b.*[;{)]"),
-    re.compile(r"^\s*//\s*(?:[A-Za-z_][\w:<>,*&\s]*\s+)?[A-Za-z_]\w*\s*\([^)]*\)\s*;"),
-    re.compile(r"^\s*//\s*[A-Za-z_]\w*\s*(?:=|\.|->)\s*[^;]{0,80};"),
-    re.compile(r"^\s*//\s*[{}]\s*$"),
-    re.compile(r"^\s*//\s*#\s*(include|define|pragma)\b"),
+               r"goto|try|catch|throw|do)\b.*[;{)]", re.M),
+    # function call, with an optional return type:  // int f(x);  |  // f(x);
+    re.compile(r"^\s*//\s*(?:\w[\w:<>,*&\s]*\s+)?\w+\s*\([^)]*\)\s*;", re.M),
+    # assignment, with an optional type:  // int value0 = compute(0);
+    # An earlier version allowed only ONE identifier before `=`, so the extremely
+    # common "type name = ..." form never matched. Found by the negative matrix.
+    re.compile(r"^\s*//\s*(?:\w[\w:<>,*&\s]*\s+)?\w+\s*=(?!=)\s*[^;]{0,80};", re.M),
+    re.compile(r"^\s*//\s*[{}]\s*$", re.M),
+    re.compile(r"^\s*//\s*#\s*(include|define|pragma)\b", re.M),
 ]
 TRUE_COMMENT = re.compile(r"^\s*//\s*(TODO|FIXME|HACK|XXX|NOTE|WARN|WARNING)\b")
 FILE_HEADER_HINT = re.compile(r"^\s*(//|/\*)")
@@ -226,7 +235,10 @@ def check_comments(name, data, errors, warns, mass_comment_limit):
         if TRUE_COMMENT.match(line):
             continue  # a real TODO/FIXME marker, not dead code
         for pat in CODE_LIKE:
-            if pat.match(line):
+            # .search, not .match: the patterns are anchored with ^ and compiled
+            # with re.M, so search is what tests each line correctly. Using
+            # .match here only ever examined line 1.
+            if pat.search(line):
                 hits.append(i)
                 break
     if hits:

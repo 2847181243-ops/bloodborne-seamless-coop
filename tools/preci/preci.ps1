@@ -522,11 +522,13 @@ echo "SEC_OK"
             $warns = (($sout.Trim() -split "`n") | Where-Object { $_ -match '^\s*~ ' })
             if ($warns) { Write-Info (M 'style_warn' @([string]$warns.Count)) }
         } else {
-            $first = (($sout.Trim() -split "`n") | Where-Object { $_ -match '^\s*! ' } |
-                      Select-Object -First 6) -join ' ; '
+            $first = (($sout.Trim() -split "`n") |
+                      Where-Object { $_ -match '^\s*! ' } |
+                      ForEach-Object { $_.Trim().Substring(2).Trim() } |
+                      Select-Object -First 3) -join ' / '
             $nerr = 0
             if ($sout -match 'errors=(\d+)') { $nerr = [int]$Matches[1] }
-            Write-Bad (M 'style_bad' @([string]$nerr + " error(s)") )
+            Write-Bad (M 'style_bad' @([string]$nerr, [string]$first))
         }
     }
 

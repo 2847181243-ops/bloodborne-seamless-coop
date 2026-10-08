@@ -60,7 +60,7 @@
   "st_ok": "{0} 个必需文件齐全",
   "stage": "阶段",
   "stage2_title": "阶段 2：需要 PR 描述与标签",
-  "style_bad": "规范问题：{0}",
+  "style_bad": "规范问题 {0} 处：{1}",
   "style_ok": "{0} 个已提交文件符合 .editorconfig（末尾换行 / 换行符 / 行尾空白 / 缩进 / 行宽）",
   "style_skip": "本机无 python，跳过代码规范检查",
   "style_warn": "疑似注释掉的代码（启发式，未判失败）：{0}",
