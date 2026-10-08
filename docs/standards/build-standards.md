@@ -12,16 +12,100 @@
 
 ## 1. 工具链现状（实测，不是假设）
 
-| 工具 | CI（`windows-latest`） | 本机当前 |
-|---|---|---|
-| `cmake` | 有 | **没有** |
-| MSVC `cl.exe` / `msbuild` | 有 | **没有**（未安装 Visual Studio） |
-| `ninja` | 有 | 有（Python 的 `ninja` 包） |
-| `clang-format` | 未配置 | **没有** |
-| `clang-tidy` | 未配置 | **没有** |
+### CI（`windows-latest`）
 
-**这意味着**：本机**无法编译**，构建门禁只能在 CI 上验证。`tools/preci` 会检测到
-没有 `cmake` 并报「跳过」，而不是假报通过 —— 这是有意的（见第 6 节）。
+| 工具 | 状态 |
+|---|---|
+| `cmake` / MSVC `cl.exe` / `msbuild` | 有 |
+| `ninja` | 有 |
+| `clang-format` / `clang-tidy` | 未配置 |
+
+### 本机（已实测，2026-10）
+
+本机当前用户**不是管理员**，这决定了两条路：
+
+| 工具 | 版本 | 怎么来的 |
+|---|---|---|
+| `cmake` | 4.4.4 | `pip install --target tools/toolchain/pylibs cmake` |
+| `ninja` | 1.13 | 本机 Python313 的 Scripts 目录已有 |
+| `zig` | 0.16.0 | `pip install --target … ziglang`（**自带完整 C/C++ 工具链 + libc++**） |
+| `clang-format` | 23.1.3 | `pip install --target … clang-format` |
+| `clang-tidy` | 22.1.8 | `pip install --target … clang-tidy` |
+| **MSVC / VS Build Tools** | **没有** | **需要管理员权限**，装不了 |
+
+一键准备（不需要管理员，全部装进 `tools/toolchain/`，已在 `.gitignore`）：
+
+```powershell
+powershell -NoProfile -File tools/toolchain/setup-toolchain.ps1
+powershell -NoProfile -File tools/toolchain/setup-toolchain.ps1 -Check   # 只看现状
+```
+
+### 本机能编到什么程度（实测结论）
+
+用 `cmake + ninja + zig` 跑通了完整链路：
+
+```text
+配置        rc=0    识别为 Clang 21.1.0
+compile_commands.json  成功产出（clang-tidy 的前提）
+编译        rc=0    .obj 产出，静态库归档成功
+clang-format --dry-run --Werror   rc=0（符合 .clang-format）
+clang-tidy  rc=1    见下面的已知限制
+```
+
+### 为什么本地用 zig 而不是 MSVC：这是有意的取舍
+
+任务书第 84 行说明 bbport 是**原生 x86-64 Windows 进程**，Mod 要注入其中。
+因此：
+
+| | MSVC（CI，权威） | zig/clang（本地，辅助） |
+|---|---|---|
+| ABI | 与游戏/Detours 一致 | **不同**（异常模型与名字修饰不同） |
+| 能否链接 MSVC 编译的 `.lib` | 能 | **不能** |
+| 用途 | 权威构建门禁（required check） | **冒烟测试**：代码写错了没有 |
+
+**不要把本地 zig 构建通过当成 CI 会通过。** 权威结论只来自 CI 的 MSVC 构建。
+
+### 已知限制（实测，不要当成"应该能用"）
+
+1. **clang-tidy 找不到标准库头文件**。原因：clang-tidy 直接调 clang 并套用
+   `compile_commands.json` 里的参数，**不走 zig 驱动**，因此拿不到 zig 内置
+   libc++ 的头文件搜索路径。实测报
+   `'cstdio' file not found [clang-diagnostic-error]`。
+   → 要真正用 clang-tidy，需要一个自带标准库的 clang（例如 LLVM 官方 Windows 包，
+   它需要 Windows SDK）**或**等 MSVC 就位。**目前 clang-tidy 在本机不可用。**
+2. **`ninja` 的 PyPI 包不含二进制**，只有 Python 包装。真 ninja 要另外装
+   （本机是 Python313 的 Scripts 目录里带的）。
+3. **两个包装脚本的形式不同，是被 CMake 逼出来的**，不是风格选择：
+   - C++ 编译器用 `python + zig-cxx.py`：CMake 在 Ninja 文件里用**单引号**引用编译器
+     路径，cmd.exe 不认单引号（实测 `'[zig-cxx.cmd]' is not recognized`）。
+   - 归档器用 `zig-ar.cmd`：`CMAKE_AR` **不支持** `exe;arg` 形式，CMake 会把整串
+     当一个路径（实测 `can't open file '…\;D:\…\zig-ar.py'`）；而归档步骤走 `cmd /C`，
+     `.cmd` 反而正常。
+   - `zig-ar.cmd` 还必须处理 ranlib：CMake 会只传归档名调用它，而
+     `zig ar libfoo.a` 报 `expected [relpos]`，要补成 `zig ar s libfoo.a`。
+4. **`.cmd` 文件必须纯 ASCII**。注释里的制表符/框线字符会被 cmd.exe 当成命令执行
+   （实测报 `'──…' is not recognized as an internal or external command`）。
+
+### 如果要装 MSVC（需要管理员）
+
+MSVC 无法用 pip 装，必须用官方安装器，且**需要管理员权限**：
+
+1. 下载 **Visual Studio Build Tools**（不需要完整 IDE）：
+   <https://visualstudio.microsoft.com/downloads/> → 「生成工具」
+2. 安装时勾选工作负载 **「使用 C++ 的桌面开发」**
+   （含 MSVC v143 编译器 + Windows SDK + CMake 集成）
+3. 勾选**单个组件**里的 **「适用于 Windows 的 C++ CMake 工具」**（可选，含自己的 CMake）
+4. 装完在 **「x64 Native Tools Command Prompt for VS」** 里执行：
+   ```bat
+   cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --config Release
+   ```
+   这个命令行与 CI 的 `build.yml` **完全一致**。
+
+装好后 `tools/preci` 会自动发现 `cmake`，构建检查从「跳过」变成真正编译。
+
+> **注意**：即使装了 MSVC，本仓库 CI 的构建门禁**仍然是**权威判据。
+> 本地装它只是为了提前发现问题，不是为了替代 CI。
 
 ---
 

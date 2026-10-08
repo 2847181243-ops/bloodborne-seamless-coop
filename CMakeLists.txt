@@ -46,6 +46,23 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# ── compile_commands.json ───────────────────────────────────────────────────
+# clang-tidy 需要它才能知道每个源文件用什么参数编译。
+#
+# ⚠️ 只有 Makefile 与 Ninja 生成器会产出它；Visual Studio 生成器**不会**
+#    （CMake 官方文档明确说明）。所以默认的 VS 生成器下这个设置是空转，
+#    需要静态分析时改用 Ninja。
+#
+#    本地没有 MSVC 时，可以用 setup-toolchain.ps1 装的 zig 当编译器：
+#
+#        powershell -NoProfile -File tools/toolchain/setup-toolchain.ps1
+#        cmake -S . -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release \
+#              "-DCMAKE_CXX_COMPILER=<python 路径>;<仓库>/tools/toolchain/zig-cxx.py"
+#        clang-tidy -p build-ninja <源文件>
+#
+#    ⚠️ zig 不是 MSVC，ABI 不同。本地只适合冒烟测试，权威构建在 CI。
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # 产物统一放到 bin/，方便 CI 的 artifact 上传与本地查找。
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
