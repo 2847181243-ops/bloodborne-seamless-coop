@@ -18,7 +18,9 @@ import _paths as P  # noqa: E402  (shared location-independent paths)
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 SRC = P.ROOT
 PRECI = os.path.join(SRC, "tools", "preci", "preci.ps1")
-PS = "powershell.exe"
+# Resolved portably. Hardcoding "powershell.exe" failed on the ubuntu runner with
+# FileNotFoundError; _paths tries powershell.exe, powershell, then pwsh.
+PS = P._find_powershell() or "powershell.exe"
 GIT = P.GIT
 
 

@@ -586,11 +586,22 @@ jobs:
   #    本项目实测发生过：检查里出现「自指」缺陷（要找的字符串也出现在它自己的
   #    报错文案里），于是永远返回通过，删掉真正的配置也拦不住。
   #
+  #    ⚠️ 为什么用 runner 矩阵（而不是只跑 ubuntu）：
+  #    其中两个套件驱动 tools/preci/preci.ps1，那是给 **Windows PowerShell 5.1**
+  #    写的脚本。一开始只在 ubuntu 上跑，连续三轮失败全是同一类平台假设
+  #    （powershell.exe → SystemRoot → git.exe → USERPROFILE），每次修一个又冒出
+  #    下一个 —— 那是在 Linux 上硬凑 Windows 环境，方向错了。
+  #    现在：Windows runner 跑 PowerShell 套件，Linux runner 跑其余，各跑该跑的。
+  #
   #    本 job 跑的是仓库内的真实套件 tools/preci/tests/，不是副本。
   # ─────────────────────────────────────────────────────────────
   regression:
-    name: 回归矩阵
-    runs-on: ubuntu-latest
+    name: 回归矩阵（${{ matrix.os }}）
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -603,8 +614,9 @@ jobs:
       - name: 装 PyYAML（workflow 结构检查需要）
         run: python -m pip install --quiet pyyaml
 
-      # 退出码约定：0 通过；1 有失败；2 有未验证项。
+      # 退出码约定：0 通过；1 有失败；2 有「期望运行但没能运行」的检查。
       # 2 在 CI 里按失败处理 —— "没检查"不等于"检查过且没问题"。
+      # 因本环境不具备条件而跳过的套件（如 CI 上没有本地 GitHub token）不计入 2。
       - name: 跑回归矩阵
         run: python tools/preci/tests/run_all.py
 
