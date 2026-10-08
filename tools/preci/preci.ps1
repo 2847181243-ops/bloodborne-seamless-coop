@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Local pre-CI: reproduce the CI gates BEFORE pushing.
 
