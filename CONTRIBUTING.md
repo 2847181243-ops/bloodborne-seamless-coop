@@ -45,7 +45,32 @@ CI 会在 PR 上校验分支名与改动路径是否落在该 Agent 的所有权
 5. 本地验证（编译 / 运行 / 多人实测，按需）
 6. 更新对应 docs/ 文档（逆向结论必须标证据等级）
 7. push + 开 PR，套用 PR 模板，勾选自检清单
-8. 等 CI + 等 review/审计 → 由 AI-00 合并到 main
+8. 等 CI（6 项必需检查）+ 等 review/审计 → 由 AI-00 合并到 main
+```
+
+### 合并方式（已由规则集强制）
+
+```text
+squash 合并 → main 永远线性；合并后自动删除源分支
+```
+
+- 规则集 `main-protection` 已启用 `required_linear_history`，且
+  `allowed_merge_methods=['squash']` —— **merge commit 与 rebase 均已关闭**。
+- **合并后的 main 提交信息取 PR 标题**，因此 **PR 标题必须符合第 3 节的
+  `<scope>: <subject>` 规范**；PR 内各条提交信息只保留在 PR 里，不进 main 历史。
+- `strict_required_status_checks = true`：**分支落后于 main 时必须先同步**，
+  否则必需检查不算数（PR 页会出现 "Update branch"）。
+- 合并后源分支自动删除；同名分支复用时需重新从 main 切出。
+
+### 合并前的硬性前置
+
+```text
+[ ] 6 项必需检查全绿（见 .dsh/skills/bbcoop-github-ops/SKILL.md 第 3 节）
+[ ] 触及 mod/security/**、mod/network/**、relay/**、tools/audit/**、tools/pentest/** 时：
+    带 audit:passed / audit:warning 标签，且 PR 内新增 docs/audit/ 报告，
+    报告含「双人独立签核」区、C3-a 与 C3-b 各自的「结论：」与标签一致
+[ ] 跨所有权改动已建 cross-agent Issue（§52）
+[ ] 无凭据 / 游戏本体 / 玩家存档入库（SECURITY.md §9）
 ```
 
 ---
@@ -127,6 +152,30 @@ VersionChecker → AddressResolver → HookManager → Game Systems
 - Signature 不匹配 → **禁止**强行 Hook；
 - Hook 失败必须明确记录日志，**不允许静默失败**；
 - **禁止**因为“可能是这个地址”就直接写入内存。
+
+---
+
+## 5.1 安全审计双人签核（强制）
+
+任务书 §44.14 规定 AI-C3 拥有安全审计职责与一票否决权。本仓库进一步要求
+**每次审计由两名审计者独立完成并双签**：
+
+| 角色 | 职责范围 |
+|---|---|
+| **C3-a** | 密码学 / 协议 / 完整性：E2EE、HMAC、序列号与时间戳防重放、密钥轮换、版本握手强校验 |
+| **C3-b** | 隐私 / 中继 / 抗滥用：隐私红线、中继零信任、速率限制与包大小、抗 Sybil、反作弊范围（仅 PvP） |
+
+报告模板与格式要求见 [`docs/audit/README.md`](docs/audit/README.md)。要点：
+
+- 两名审计者**各自独立**给出「结论：」，取值只能是 `PASS` 或 `PASS_WITH_WARNING`；
+- 任一方写 `FAIL`、取值与 PR 标签不一致、或任一方缺失 ⇒ **CI 阻断合并**；
+- CI（`pr-guard.yml` 的 `security-gate`）会校验上述字段。
+
+> ⚠️ **能力边界（不得含糊）**：这是**文本层强制**——CI 读取报告文本，
+> **不是** GitHub 平台级双人审批。仓库为个人账号、CODEOWNERS 单账号，
+> 平台无法强制两名审批人（ruleset 的 `required_reviewers` 只支持 team，需组织）。
+> 因此「两名审计者是否真的独立」最终仍依赖流程纪律。
+> **禁止**对外把该机制表述为平台级保证。
 
 ---
 

@@ -46,7 +46,6 @@ jobs:
             echo "✅ PR 模板章节完整。"
           fi
           exit $failed
-
   security-gate:
     name: 安全审计门禁（一票否决）
     runs-on: ubuntu-latest
@@ -59,6 +58,10 @@ jobs:
       - name: 网络 / 安全代码必须有审计结论
         shell: bash
         env:
+          # 多字节解析一律在 UTF-8 locale 下进行。C locale 下 bash 的字符类与
+          # [[:space:]] 按**字节**处理，全角字符会被拆坏（实测：C locale 下
+          # sed 's/^.*[:：]//' 对「结论：PASS（已复核）」只剩单字节 0x89）。
+          LC_ALL: C.UTF-8
           BASE_REF: ${{ github.base_ref }}
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           PRNUMBER: ${{ github.event.pull_request.number }}
@@ -69,49 +72,56 @@ jobs:
           git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1 || true
           mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD")
 
+          # ── 触发面（大小写不敏感）──────────────────────────────────────
+          # 与 docs/audit/README.md「强制审计触发条件」保持一致：
+          # 安全 / 网络 / 中继 / 审计工具 + **存档写入与物品发放所在的系统层**
+          # （mod/session、mod/replication、mod/gameplay、mod/core）。
+          # 曾遗漏后四项，导致存档与物品发放改动可以完全跳过审计门禁。
+          shopt -s nocasematch
           sensitive=0
+          sensitive_files=()
           for f in "${files[@]}"; do
             case "$f" in
-              mod/security/*|mod/network/*|relay/*|tools/audit/*|tools/pentest/*)
+              mod/security/*|mod/network/*|relay/*|tools/audit/*|tools/pentest/*|\
+              mod/session/*|mod/replication/*|mod/gameplay/*|mod/core/*|mod/platform/*|\
+              config/*)
                 echo "触及安全相关路径：$f"
                 sensitive=1
+                sensitive_files+=("$f")
                 ;;
             esac
           done
+          shopt -u nocasematch
 
           if [[ $sensitive -eq 0 ]]; then
-            echo "✅ 未触及网络 / 安全代码，跳过审计门禁。"
+            echo "✅ 未触及网络 / 安全 / 存档 / 物品发放相关代码，跳过审计门禁。"
             exit 0
           fi
 
-          echo "检测到网络 / 安全代码变更。标签：$LABELS"
+          echo "检测到 ${#sensitive_files[@]} 个敏感文件。标签：${LABELS:-（无）}"
 
           # ── 1) FAIL 一票否决（任务书 §44.14 / §47.6）──────────────────
-          if [[ ",$LABELS," == *",audit:failed,"* ]]; then
+          # 用逗号包裹后精确匹配，避免标签名子串冒充（如 "x,audit:passed"）。
+          if [[ ",${LABELS:-}," == *",audit:failed,"* ]]; then
             echo "::error::AI-C3 审计结论为 FAIL —— 一票否决，阻断合并（任务书 §44.14）。"
             exit 1
           fi
 
           # ── 2) 标签必须存在 ─────────────────────────────────────────
-          if [[ ",$LABELS," != *",audit:passed,"* && ",$LABELS," != *",audit:warning,"* ]]; then
+          if [[ ",${LABELS:-}," != *",audit:passed,"* && ",${LABELS:-}," != *",audit:warning,"* ]]; then
             echo "::error::网络 / 安全代码变更必须带 audit:passed 或 audit:warning 标签。请先走 .github/ISSUE_TEMPLATE/security-audit.yml，审计报告写入 docs/audit/。"
             exit 1
           fi
 
-          # ── 3) 标签之外必须有审计报告实体（本门禁原缺陷：只读标签不读证据）──
-          # 报告命名见 docs/README.md：audit_<模块>_<YYYYMMDD>.md
+          # ── 3) 必须有审计报告实体（标签之外要证据） ────────────────────
           mapfile -t reports < <(printf '%s\n' "${files[@]}" | grep -E '^docs/audit/audit_.+_[0-9]{8}\.md$' || true)
-
           if [[ ${#reports[@]} -eq 0 ]]; then
             echo "::error::带有审计标签，但本 PR 未包含审计报告。请在 docs/audit/ 下新增 audit_<模块>_<YYYYMMDD>.md（模板见 docs/audit/README.md）。"
             exit 1
           fi
 
-          # ── 4) 报告必须是新增/修改的正式报告，且有结论与审计对象 ────────
           expected=PASS
-          if [[ ",$LABELS," == *",audit:warning,"* ]]; then expected='PASS_WITH_WARNING'; fi
-
-          # 说明：模板未规定必须标注 PR 编号，故不强制绑定；此处改为校验报告自洽。
+          if [[ ",${LABELS:-}," == *",audit:warning,"* ]]; then expected='PASS_WITH_WARNING'; fi
           echo "期望结论（据标签推导）：$expected"
 
           failed=0
@@ -124,32 +134,102 @@ jobs:
               continue
             fi
 
-            if ! grep -qE '^#+[[:space:]]*审计报告' "$rf"; then
+            # 去 BOM：BOM 会让 ^ 锚定的 grep 失配，并产生误导性报错。
+            content=$( { head -n1 "$rf" | sed $'s/^\xef\xbb\xbf//'; tail -n +2 "$rf"; } )
+
+            # 标题
+            if ! printf '%s\n' "$content" | grep -qE '^#+[[:space:]]*审计报告'; then
               echo "::error file=$rf::缺少「审计报告」标题（模板见 docs/audit/README.md）。"
               failed=1
             fi
 
-            concl=$(grep -m1 -E '结论[[:space:]]*[:：]' "$rf" || true)
-            if [[ -z "$concl" ]]; then
-              echo "::error file=$rf::缺少「结论：PASS / PASS_WITH_WARNING / FAIL」字段。"
-              failed=1
-            elif [[ "$concl" != *"$expected"* ]]; then
-              echo "::error file=$rf::报告结论与标签不一致 —— 标签为 audit:passed/audit:warning（期望 $expected），但报告写明：$(echo "$concl" | sed 's/^[[:space:]]*//')"
+            # ── 顶层「结论」：整行精确匹配，杜绝模板行/示例行误命中 ─────────
+            # 旧实现用子串匹配，报告顶部保留模板行
+            # 「- 结论：PASS / PASS_WITH_WARNING / FAIL」即可同时满足两种标签（实测漏洞）。
+            top=$(printf '%s\n' "$content" | grep -m1 -E '^[[:space:]]*[-*][[:space:]]*结论[[:space:]]*[:：]' || true)
+            if [[ -z "$top" ]]; then
+              echo "::error file=$rf::缺少数值化的顶层「结论」行（须为 `- 结论：PASS` 形式）。"
               failed=1
             else
-              echo "  ✅ 结论匹配：$(echo "$concl" | sed 's/^[[:space:]]*//')"
+              top_val=$(printf '%s' "$top" \
+                | sed -E 's/^[[:space:]]*-?[[:space:]]*结论[[:space:]]*[:：][[:space:]]*//' \
+                | tr -d '[:space:]')
+              if [[ "$top_val" != "PASS" && "$top_val" != "PASS_WITH_WARNING" && "$top_val" != "FAIL" ]]; then
+                echo "::error file=$rf::顶层「结论」取值非法：'$top_val'（只能是 PASS / PASS_WITH_WARNING / FAIL）。"
+                failed=1
+              elif [[ "$top_val" == "FAIL" ]]; then
+                echo "::error file=$rf::报告顶层结论为 FAIL —— 一票否决。"
+                failed=1
+              elif [[ "$top_val" != "$expected" ]]; then
+                echo "::error file=$rf::顶层结论 $top_val 与标签期望的 $expected 不一致。"
+                failed=1
+              else
+                echo "  ✅ 顶层结论：$top_val"
+              fi
             fi
 
-            subj_val=$(grep -m1 -E '审计对象[[:space:]]*[:：]' "$rf" \
-              | sed -E 's/^.*[:：]//' | tr -d '[:space:]' || true)
-            # ⚠️ 两处都踩过坑，勿改回去：
-            #  1) ${var#*[:：]} —— bash 参数展开按**字节**比较字符类，全角冒号是
-            #     3 字节(ef bc 9a)，只剥掉首字节，空字段被误判为"非空"。
-            #  2) sed 's/^[^:：]*[:：]//' —— 方括号表达式在 C locale 下同样按字节，
-            #     残留 2 字节。改用 ^.*[:：]（无方括号），C 与 C.UTF-8 行为一致。
+            # 审计对象
+            subj_val=$(printf '%s\n' "$content" | grep -m1 -E '^[[:space:]]*[-*][[:space:]]*审计对象[[:space:]]*[:：]' \
+              | sed -E 's/^[^:：]*[:：]//' | tr -d '[:space:]' || true)
             if [[ -z "$subj_val" ]]; then
               echo "::error file=$rf::「审计对象」为空（须写明 PR / commit SHA / 文件清单）。"
               failed=1
+            fi
+
+            # ── 双人独立签核 ────────────────────────────────────────────
+            # 只在「双人」标题之后的**当前区段**内解析（到下一个同级/更高级标题为止），
+            # 且每个角色**恰好一条**结论行。
+            # 旧实现取「该角色之后第一条结论」，先出现者胜 —— 报告前部任何一段 PASS
+            # （按模板起草时的示例块即可造成）会让写在后面的真实 FAIL 静默失效，
+            # 等于推翻 §44.14 的一票否决（实测漏洞，本题最严重）。
+            # ⚠️ 标题匹配一律使用**不含字符类**的模式（`^#+ .*双人`）。
+            # 实测：GNU awk 5.0 在该 locale 下 `/^#+[[:space:]]*双人/` **完全不匹配**
+            # （`[[:space:]]` 与多字节字符组合会失配），导致「双人签核区」永远找不到，
+            # 所有正常报告都被误判。类无关写法在 grep 与 awk 下都已实测可用。
+            blockn=$(printf '%s\n' "$content" | grep -n -m1 -E '^#+ .*双人' | cut -d: -f1)
+            block=""
+            if [[ -n "$blockn" ]]; then
+              block=$(printf '%s\n' "$content" | awk -v start="$blockn" '
+                NR == start {
+                  lvl = match($0, /[^#]/) - 1   # 标题层级 = 前导 # 个数
+                  print; next
+                }
+                NR > start {
+                  if ($0 ~ /^#+/) {
+                    if (match($0, /[^#]/) - 1 <= lvl) exit
+                  }
+                  print
+                }
+              ')
+            fi
+
+            if [[ -z "$block" ]]; then
+              echo "::error file=$rf::缺少「双人独立签核」区（模板见 docs/audit/README.md）。"
+              failed=1
+            else
+              for role in C3-a C3-b; do
+                # 该角色的条目行 + 其后到下一个 C3 条目/区段末为止的判定行
+                seg=$(printf '%s\n' "$block" | awk -v r="$role" '
+                  index($0, "- " r) == 1 || index($0, "-" r) == 1 { f=1; next }
+                  f && /^- *C3-[ab]/ { exit }
+                  f { print }
+                ')
+                mapfile -t vs < <(printf '%s\n' "$seg" | grep -E '^[[:space:]]*-?[[:space:]]*结论[[:space:]]*[:：]' \
+                  | sed -E 's/^[[:space:]]*-?[[:space:]]*结论[[:space:]]*[:：][[:space:]]*//' | tr -d '[:space:]' || true)
+
+                if [[ ${#vs[@]} -eq 0 ]]; then
+                  echo "::error file=$rf::$role 未给出「结论：」判定。"
+                  failed=1
+                elif [[ ${#vs[@]} -gt 1 ]]; then
+                  echo "::error file=$rf::$role 给出多条结论（$(printf '%s ' "${vs[@]}")）—— 每个角色只允许一条，避免先出现者掩盖真实 FAIL。"
+                  failed=1
+                elif [[ "${vs[0]}" != "$expected" ]]; then
+                  echo "::error file=$rf::$role 的判定为 ${vs[0]}，与标签期望的 $expected 不一致（任一方 FAIL 即一票否决）。"
+                  failed=1
+                else
+                  echo "  ✅ $role 判定：${vs[0]}"
+                fi
+              done
             fi
           done
 
@@ -157,5 +237,5 @@ jobs:
             exit 1
           fi
 
-          echo "✅ 审计证据齐全：标签 $LABELS，报告 ${#reports[@]} 份，结论 $expected。"
+          echo "✅ 审计证据齐全：标签 $LABELS，报告 ${#reports[@]} 份，顶层结论 $expected，双人签核一致。"
           exit 0
