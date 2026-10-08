@@ -257,6 +257,116 @@ def check_comments(name, data, errors, warns, mass_comment_limit):
                 if sev == "ERROR" else " (reviewable)")))
 
 
+def _cmake_call_args(text, command, target):
+    """Concatenate the arguments of EVERY `command(target ...)` call.
+
+    Two traps found by the negative tests, both silent:
+
+    1. A non-greedy regex `(.*?\\)` stops at the first ')' -- which here lands
+       inside a generator expression like `$<$<COMPILE_LANGUAGE:CXX>:/permissive->`,
+       truncating the option list.
+    2. Even with correct paren balancing, reading only the FIRST call is wrong:
+       this file expresses the standard as several separate
+       `target_compile_options(bbcoop_warnings INTERFACE ...)` calls, so the first
+       one holds only `/W4 /WX` and every later flag looked absent
+       (baseline reported 4 phantom errors).
+
+    So: balance parens AND accumulate across all matching calls.
+    """
+    pat = re.compile(r"\b" + re.escape(command) + r"\s*\(\s*" + re.escape(target) + r"\b")
+    parts = []
+    for m in pat.finditer(text):
+        i = text.index("(", m.start())
+        depth = 0
+        for j in range(i, len(text)):
+            c = text[j]
+            if c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+                if depth == 0:
+                    parts.append(text[i + 1:j])
+                    break
+    return "\n".join(parts) if parts else None
+
+
+def check_build_standards(tree, errors):
+    """Refuse silent removal of the compiler standards.
+
+    Rationale: CMakeLists.txt already FATAL_ERRORs at configure time if /W4 or /WX
+    go missing -- but that only fires when someone actually configures a build.
+    On a machine with no cmake (like this one) nothing would catch it until CI.
+    Checking the flags textually means the pre-CI catches it immediately.
+
+    This is a META-check: it protects the tool that protects the build.
+    """
+    p = "CMakeLists.txt"
+    if p not in tree:
+        return
+    try:
+        raw = tree[p].decode("utf-8")
+    except UnicodeDecodeError:
+        return
+
+    # Parse ONLY the argument list of target_compile_options(bbcoop_warnings ...).
+    #
+    # A whole-file substring search is self-defeating here: the flags we look for
+    # also appear in (a) this file's explanatory comments, (b) CMake's own
+    # configure-time assertion messages ("...里找不到 /WX"), and (c)
+    # message(STATUS ...) output. With those present, deleting the real option
+    # still leaves the substring in the file, so the check could never fire.
+    # Measured: the negative test "delete /WX" reported 0 errors for exactly this
+    # reason.
+    # The option lists contain generator expressions like
+    #     $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+    # whose own ')' terminates any non-greedy regex match, truncating the list so
+    # flags after that point are never inspected. Two regex attempts failed this
+    # way (the baseline case reported 4 phantom errors); paren balancing is used
+    # instead -- see _cmake_call_args.
+    opts = _cmake_call_args(raw, "target_compile_options", "bbcoop_warnings")
+    if opts is None:
+        errors.append(("ERROR", p, 0,
+                       "CMakeLists.txt 里找不到 bbcoop_warnings 的 target_compile_options —— "
+                       "编译标准应集中在这个接口目标上定义，不要各模块自行决定。"))
+        return
+
+    REQUIRED = {
+        "/W4": "警告等级 4",
+        "/WX": "警告即错误（零警告的真正执行者）",
+        "/permissive-": "标准符合性（关闭 MSVC 宽松解析）",
+        "/utf-8": "源码与执行字符集按 UTF-8（防 GBK 误码）",
+        "/external:W0": "第三方头文件不产生警告",
+        "/external:anglebrackets": "外部头文件按 <> 形式识别",
+    }
+    for flag, why in REQUIRED.items():
+        if flag not in opts:
+            errors.append(("ERROR", p, 0,
+                           f"编译标准被削弱：bbcoop_warnings 的编译选项里找不到 {flag}"
+                           f"（{why}）。写进注释或断言消息都不算。"
+                           f"改之前先读 docs/standards/build-standards.md。"))
+
+    # 链接期加固
+    lopts = _cmake_call_args(raw, "target_link_options", "bbcoop_warnings")
+    if lopts is None:
+        errors.append(("ERROR", p, 0, "找不到 bbcoop_warnings 的 target_link_options（链接期加固）"))
+    else:
+        for flag, why in {"/guard:cf": "控制流保护", "/DYNAMICBASE": "ASLR",
+                          "/NXCOMPAT": "数据执行保护", "/HIGHENTROPYVA": "64 位高位随机化"}.items():
+            if flag not in lopts:
+                errors.append(("ERROR", p, 0,
+                               f"链接期加固被削弱：找不到 {flag}（{why}）"))
+
+    # The self-assert must stay, otherwise removing it also removes the safety net.
+    if "FATAL_ERROR" not in raw:
+        errors.append(("ERROR", p, 0,
+                       "CMakeLists.txt 缺少配置阶段自检（message(FATAL_ERROR ...)）—— "
+                       "没有它，标准被删掉时构建不会立刻失败。"))
+    # Docs must exist: a standard nobody can read is not a standard.
+    doc = "docs/standards/build-standards.md"
+    if doc not in tree:
+        errors.append(("ERROR", doc, 0, "缺少编译标准文档（被 CMakeLists.txt 引用）"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=".")
@@ -280,6 +390,8 @@ def main():
         scanned += 1
         check_editorconfig(name, tree[name], errors)
         check_comments(name, tree[name], errors, warns, args.mass_comment_limit)
+
+    check_build_standards(tree, errors)
 
     if args.json:
         print(json.dumps({

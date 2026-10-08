@@ -1,0 +1,61 @@
+# clang-format 配置
+#
+# 为什么是这份内容：本仓库的 .editorconfig 已经定了缩进与行宽，这里必须与它一致，
+# 不能各自为政（否则格式化工具与编辑器会互相打架）。
+#     .editorconfig: indent_style=space, indent_size=4, max_line_length=120
+#
+# 使用的关键纪律（见 docs/standards/build-standards.md）：
+#   **PR 里只用 `git clang-format --diff <base>` 格式化「本次改动的行」**，
+#   不要对整棵树跑 clang-format。本仓库已有大量手写文档，整树格式化会产生
+#   一个几千行的 diff，把真正的改动淹没，review 就没法做了。
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# 缩进：与 .editorconfig 一致
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# 行宽：与 .editorconfig 的 max_line_length 一致
+ColumnLimit: 120
+
+# 访问修饰符不额外缩进（public:/private: 与 class 对齐）
+AccessModifierOffset: -4
+
+# 大括号：函数另起一行（游戏 mod 代码可读性优先，与多数 Windows 项目一致）
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+
+# 指针与引用：靠左（int* p 而不是 int *p）
+PointerAlignment: Left
+DerivePointerAlignment: false
+
+# 连续赋值/声明对齐：关掉，否则会产生大量无意义的空格 diff
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: false
+
+# 参数与实参：超宽时每行一个
+BinPackArguments: false
+BinPackParameters: false
+
+# include 排序：保留分节（自己写分节注释），同一节内按字母排
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+
+# 命名空间内容不缩进（省一列，且 C++ 社区主流）
+NamespaceIndentation: None
+
+# 允许把 lambda / 模板这类长内容合理折行
+AlwaysBreakTemplateDeclarations: Yes
+ReflowComments: true
+
+# 中文注释：不要在注释里自动断行 —— 本项目注释以中文为主，
+# 自动断行会按字节宽度判断，容易把中文句子切得很难看。
+# ReflowComments=true 只作用于超宽注释行，且不改变中文标点。
+CommentPragmas: '^[[:space:]]*(NOLINT|clang-format|TODO|FIXME|NOTE|WARN)'

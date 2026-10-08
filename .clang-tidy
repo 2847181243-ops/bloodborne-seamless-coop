@@ -1,0 +1,82 @@
+# clang-tidy 配置
+#
+# 前提（很重要）：clang-tidy 需要 compile_commands.json，而**只有 Makefile 与
+# Ninja 生成器会产出它**，Visual Studio 生成器不会。所以：
+#
+#     cmake -S . -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release \
+#           -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
+#     clang-tidy -p build-ninja mod/core/*.cpp
+#
+# 本机目前没有装 clang-tidy（见 docs/standards/build-standards.md 的工具清单）。
+# 这份配置先立着，等第一个源文件与工具就位即可用，不必那时再讨论选哪些检查。
+#
+# 取舍原则：**只开能给出确定结论的检查**。
+# 需要整个调用图才能判断的检查（如 misc-include-cleaner 的传递依赖分析）
+# 在单文件模式下会给出大量假阳性，那种检查宁可不开 —— 假阳性会训练人忽略输出。
+---
+Checks: >-
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers
+
+# 警告不当错误：/WX 已经在编译阶段把「编译警告」变成错误了。
+# clang-tidy 的结论有启发式成分，直接当错误会让人学会加 NOLINT 而不是改代码。
+# 先在 CI 里以报告形式存在，等某个检查证明稳定后再逐个升级。
+WarningsAsErrors: ''
+
+# 第三方头文件不检查（与 MSVC 的 /external:W0 策略一致）
+HeaderFilterRegex: '^(mod|relay)/.*\.(h|hpp)$'
+
+FormatStyle: file
+
+CheckOptions:
+  # 命名规则与 contrib 约定一致：类型大驼峰、函数小驼峰、成员 m_ 前缀、常量 k 前缀。
+  # 若某模块有不同约定，在该模块的 .clang-tidy 里覆盖，而不是全局放宽。
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.MethodCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+  - key: readability-identifier-naming.PrivateMemberPrefix
+    value: 'm_'
+  - key: readability-identifier-naming.ConstexprVariablePrefix
+    value: 'k'
+  - key: readability-identifier-naming.GlobalConstantPrefix
+    value: 'k'
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  # 函数复杂度上限。与 docs/standards/build-standards.md 里的门槛保持一致。
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '25'
+  - key: readability-function-size.LineThreshold
+    value: '200'
+  # 允许的短标识符（循环变量等）
+  - key: readability-identifier-length.MinimumVariableNameLength
+    value: '2'
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: 'i|j|k|x|y|z|it|id|p|n'
+  - key: readability-identifier-length.IgnoredParameterNames
+    value: 'i|j|k|x|y|z|p|n|fd'
