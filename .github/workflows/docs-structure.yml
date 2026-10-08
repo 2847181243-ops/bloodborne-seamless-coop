@@ -1,0 +1,113 @@
+name: docs-structure
+
+# 校验任务书要求的最小仓库结构是否完整（任务书 §44.2 / §50 / §51）
+# 文档缺失 = 工作未完成。
+
+on:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+      - 'lead/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-structure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  required-files:
+    name: 必需文件与目录结构
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 校验仓库结构
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          required=(
+            "README.md"
+            "CONTRIBUTING.md"
+            "SECURITY.md"
+            "bloodbrone.markdown"
+            ".gitignore"
+            ".gitattributes"
+            ".editorconfig"
+            ".github/CODEOWNERS"
+            ".github/PULL_REQUEST_TEMPLATE.md"
+            ".github/labels.yml"
+            ".github/ISSUE_TEMPLATE/config.yml"
+            ".github/ISSUE_TEMPLATE/cross-agent-task.yml"
+            ".github/ISSUE_TEMPLATE/re-finding.yml"
+            ".github/ISSUE_TEMPLATE/runtime-defect.yml"
+            ".github/ISSUE_TEMPLATE/security-audit.yml"
+            "docs/README.md"
+            "docs/interfaces/README.md"
+            "docs/interfaces/a1_to_a2_events.md"
+            "docs/interfaces/a2_to_a3_a4_state.md"
+            "docs/interfaces/c1_to_b1_b4_e2ee.md"
+            "docs/interfaces/c2_to_b_security_constraints.md"
+            "docs/interfaces/b3_to_b4_reputation.md"
+            "docs/interfaces/c3_to_all_audit.md"
+            "docs/re/README.md"
+            "docs/security/README.md"
+            "docs/audit/README.md"
+            "docs/pentest/README.md"
+            "docs/integration/README.md"
+            "docs/conflict_log/README.md"
+          )
+
+          failed=0
+          for f in "${required[@]}"; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error file=$f::缺少必需文件：$f"
+              failed=1
+            fi
+          done
+
+          if [[ $failed -eq 0 ]]; then
+            echo "✅ 仓库结构完整（${#required[@]} 个必需文件全部存在）"
+          fi
+          exit $failed
+
+      - name: 检查 13 条 Agent 分支是否存在（仅 main）
+        if: github.ref_name == 'main'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          agents=(
+            a0-platform-integration
+            a1-reverse-engineering
+            a2-session-replication
+            a3-gameplay-systems
+            a4-balance-pvp
+            b1-transport
+            b2-discovery
+            b3-reputation
+            b4-relay
+            c1-cryptography
+            c2-security-architecture
+            c3-security-audit
+            c4-penetration-test
+          )
+          missing=0
+          for a in "${agents[@]}"; do
+            if git ls-remote --exit-code --heads origin "agent/$a" >/dev/null 2>&1; then
+              echo "✅ agent/$a"
+            else
+              echo "::warning::远端分支 agent/$a 不存在（任务书 §48 要求 13 条 Agent 分支）"
+              missing=$((missing + 1))
+            fi
+          done
+          echo "缺失分支数：$missing / ${#agents[@]}"

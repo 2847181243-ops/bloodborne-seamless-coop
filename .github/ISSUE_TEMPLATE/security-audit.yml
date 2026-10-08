@@ -1,0 +1,95 @@
+name: 安全审计请求（AI-C3）
+description: 提交设计审计 / 代码审计 / 密码学审计 / 隐私审计 / 持续审计（任务书 §44.14 / §45.6 / §47.6）
+title: "[AUDIT] "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **安全一票否决**：任何网络代码未通过 AI-C3 审计，不得合并。
+        > 审计结论：`PASS` / `PASS_WITH_WARNING` / `FAIL`。
+        > 报告落在 `docs/audit/`，PR 需打标签 `audit:passed` / `audit:warning` / `audit:failed`。
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: 审计阶段
+      options:
+        - 设计审计（实现前）
+        - 代码审计（合并前）
+        - 密码学审计
+        - 隐私审计
+        - 持续审计（网络代码变更）
+    validations:
+      required: true
+
+  - type: input
+    id: target
+    attributes:
+      label: 审计对象
+      placeholder: "PR #123 / commit abc1234 / mod/network/transport/session.cpp"
+    validations:
+      required: true
+
+  - type: input
+    id: proposer
+    attributes:
+      label: 提交方 Agent
+      placeholder: "AI-B1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 审计范围与变更说明
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: selfcheck
+    attributes:
+      label: 提交前自检（任务书 §47.6 基线）
+      options:
+        - label: 未新增任何隐私数据采集或出网字段（IP / 账号 ID / 硬件指纹 / 持久 ID / 地理位置）
+          required: true
+        - label: 消息附带 HMAC，且序列号单调递增 + 时间戳防重放
+          required: true
+        - label: 会话密钥定期轮换，私钥只存内存、不落盘、不进日志
+          required: true
+        - label: 校验失败路径记录 [SECURITY] 日志并拒绝消息，无静默通过
+          required: true
+        - label: 中继仍无法解密 / 篡改 / 重放 / 记录日志
+          required: true
+        - label: 速率限制与包大小上限已覆盖新消息类型
+          required: true
+        - label: 版本握手强校验，不一致时拒绝连接
+          required: true
+        - label: 未以“性能”或“功能”为由削弱安全（如有削弱，已单独建 Issue）
+          required: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 对照的安全约束
+      description: 列出 `docs/security/constraints.md` 中受影响的约束编号（C-0xx / C-1xx / …）。
+      placeholder: "C-001 端到端加密强制、C-005 速率限制"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 证据材料
+      description: 测试结果 / 抓包（脱敏）/ 单元测试 / 设计说明链接。
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: 已知残余风险与接受的取舍
+    validations:
+      required: false

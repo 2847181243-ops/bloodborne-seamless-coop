@@ -1,0 +1,107 @@
+name: branch-policy
+
+# 落实任务书 §48「分支与代码所有权」：
+#   1. PR 源分支必须命名为 agent/<agent>-<topic> 或 lead/<topic>
+#   2. 改动文件必须落在该 Agent 的所有权范围内
+# 与 .github/CODEOWNERS 的所有权映射保持一致。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ownership:
+    name: 分支命名与写入范围
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 校验分支与所有权
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          declare -A SCOPE=(
+            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ .github/ docs/README.md README.md CONTRIBUTING.md SECURITY.md bloodbrone.markdown .gitignore .gitattributes .editorconfig"
+            [a0]="mod/platform/"
+            [a1]="docs/re/ mod/core/"
+            [a2]="mod/session/ mod/replication/"
+            [a3]="mod/gameplay/"
+            [a4]="mod/balance/ config/"
+            [b1]="mod/network/transport/"
+            [b2]="mod/network/discovery/"
+            [b3]="mod/network/reputation/"
+            [b4]="relay/"
+            [c1]="mod/security/crypto/"
+            [c2]="docs/security/"
+            [c3]="docs/audit/ tools/audit/"
+            [c4]="docs/pentest/ tools/pentest/"
+          )
+
+          echo "PR 源分支：$HEAD_REF  →  目标分支：$BASE_REF"
+
+          case "$HEAD_REF" in
+            lead/*)
+              AGENT="lead"
+              ;;
+            agent/*)
+              rest="${HEAD_REF#agent/}"
+              AGENT="${rest%%-*}"
+              ;;
+            *)
+              echo "::error::PR 源分支必须命名为 agent/<agent>-<topic> 或 lead/<topic>，当前为 '$HEAD_REF'。见任务书 §48 与 CONTRIBUTING.md。"
+              exit 1
+              ;;
+          esac
+
+          if [[ -z "${SCOPE[$AGENT]:-}" ]]; then
+            echo "::error::未知 Agent 标识 '$AGENT'。合法值为：a0 a1 a2 a3 a4 b1 b2 b3 b4 c1 c2 c3 c4 lead"
+            exit 1
+          fi
+
+          allowed="${SCOPE[$AGENT]}"
+          echo "Agent：$AGENT"
+          echo "允许写入范围：$allowed"
+
+          git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1 || true
+
+          mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD")
+
+          if (( ${#files[@]} == 0 )); then
+            echo "::notice::未检测到与 $BASE_REF 的文件差异。"
+            exit 0
+          fi
+
+          failed=0
+          for f in "${files[@]}"; do
+            ok=0
+            for p in $allowed; do
+              if [[ "$f" == "$p"* ]]; then
+                ok=1
+                break
+              fi
+            done
+            if [[ $ok -eq 0 ]]; then
+              echo "::error file=$f::文件 '$f' 不在 Agent '$AGENT' 的所有权范围内。跨所有权修改必须由 AI-00 建立 Issue（任务书 §48 / §52）。"
+              failed=1
+            fi
+          done
+
+          if [[ $failed -eq 0 ]]; then
+            echo "✅ 本次 PR 的 ${#files[@]} 个改动文件全部落在 $AGENT 的所有权范围内。"
+          fi
+          exit $failed

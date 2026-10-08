@@ -1,0 +1,88 @@
+name: 逆向结论不确定 / 待确认项
+description: 关键函数、地址、签名或原版行为无法确认（任务书 §5.5 / §37 / §52）
+title: "[RE] "
+labels: ["reverse-engineering", "blocked"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > 任务书 §5.5：**不允许静默失败。**
+        > 未确认的结论必须显式记录为 Hypothesis / Unknown，**禁止当成事实写入核心逻辑**。
+
+  - type: input
+    id: target
+    attributes:
+      label: 逆向目标
+      placeholder: "原版决斗场匹配逻辑 / PlayerDeath 的 Hook 地址"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: 当前证据等级
+      options:
+        - Confirmed
+        - Probable
+        - Hypothesis
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 需要确认的问题
+      description: 精确到“是/否”或“取值是多少”，不要写模糊问题。
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试的手段与结果
+      placeholder: |
+        - 反汇编 sub_XXXXXX：看到 ...（证据）
+        - 交叉引用：...
+        - 运行时下断点：未命中，原因 ...
+        - 行为实验：...
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 现有证据
+      description: 反汇编片段 / 交叉引用 / 运行时日志 / 行为实验记录。
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 阻塞了谁
+      description: 哪些 Agent / 哪些功能因为这个问题无法推进。
+      placeholder: "AI-A2 无法确定是否复用原版石像触发；AI-A3 的 Arena 无法开始。"
+    validations:
+      required: true
+
+  - type: textarea
+    id: next
+    attributes:
+      label: 下一步计划
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 版本与安全确认
+      options:
+        - label: 已记录游戏版本 1.09（CUSA03173）与 bbport 平台信息
+          required: true
+        - label: 未因“可能是这个地址”而直接写入内存
+          required: true
+        - label: 相关 Hook 失败时有明确日志，未静默失败
+          required: true
+    validations:
+      required: true

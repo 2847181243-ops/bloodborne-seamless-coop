@@ -1,0 +1,89 @@
+name: issue-triage
+
+# 依据标题前缀与关键词自动打标签，把 Issue 路由到对应 Agent 与功能域。
+# 标签由 .github/workflows/labels.yml 维护。
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  label:
+    name: 自动标注
+    runs-on: ubuntu-latest
+    steps:
+      - name: 依据标题与正文打标签
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+
+          text="$ISSUE_TITLE
+          $ISSUE_BODY"
+
+          labels=()
+          add() {
+            labels+=("$1")
+          }
+          contains() {
+            [[ "$text" == *"$1"* ]]
+          }
+
+          # ── 标题前缀 ──────────────────────────────────────
+          case "$ISSUE_TITLE" in
+            "[TASK]"*)   add cross-agent ;;
+            "[RE]"*)     add reverse-engineering; add needs-re ;;
+            "[DEFECT]"*) add defect; add critical ;;
+            "[AUDIT]"*)  add security; add needs-audit ;;
+          esac
+
+          # ── Agent 归属 ────────────────────────────────────
+          for a in a0 a1 a2 a3 a4 b1 b2 b3 b4 c1 c2 c3 c4; do
+            if contains "AI-${a^^}"; then
+              add "agent:$a"
+            fi
+          done
+
+          # ── 功能域 ────────────────────────────────────────
+          if contains "Lantern"; then add "domain:lantern"; fi
+          if contains "Boss"; then add "domain:boss"; fi
+          if contains "Blood Echoes"; then add "domain:death"; fi
+          if contains "World Reset"; then add "domain:lantern"; fi
+          if contains "Party Wipe"; then add "domain:death"; fi
+          if contains "Max HP"; then add "domain:death"; fi
+          if contains "存档" || contains "save"; then add "domain:save"; fi
+          if contains "Invasion" || contains "PvP" || contains "决斗场" || contains "Arena"; then add "domain:pvp"; fi
+          if contains "掉落" || contains "Loot" || contains "商店" || contains "消耗品"; then add "domain:loot"; fi
+          if contains "反作弊" || contains "黑名单" || contains "Blacklist"; then add "domain:anticheat"; fi
+          if contains "E2EE" || contains "加密" || contains "密钥" || contains "中继" || contains "Relay"; then add security; fi
+          if contains "Scaling" || contains "平衡" || contains "下修"; then add "domain:balance"; fi
+          if contains "bbport" || contains "平台适配"; then add "domain:platform"; fi
+          if contains "区域切换" || contains "雾门"; then add "domain:world"; fi
+          if contains "Session"; then add "domain:network"; fi
+
+          if (( ${#labels[@]} == 0 )); then
+            echo "::notice::未匹配到任何规则，跳过打标签。"
+            exit 0
+          fi
+
+          mapfile -t labels < <(printf '%s\n' "${labels[@]}" | sort -u)
+          echo "将添加标签：${labels[*]}"
+
+          args=()
+          for l in "${labels[@]}"; do
+            args+=(--add-label "$l")
+          done
+
+          if ! gh issue edit "$ISSUE_NUMBER" "${args[@]}" 2>/tmp/gh-err; then
+            echo "::warning::打标签失败（标签可能尚未创建，请先让 labels 工作流运行一次）："
+            cat /tmp/gh-err || true
+          fi

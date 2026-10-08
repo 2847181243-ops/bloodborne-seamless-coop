@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞（请勿公开披露）
+    url: https://github.com/YOUR_GITHUB_USERNAME/REPO_NAME/security/advisories/new
+    about: MITM / Sybil / DDoS / 协议缺陷 / 供应链问题，请走 Security Advisory 私有渠道。
+  - name: 任务书 v3.0（唯一需求来源）
+    url: https://github.com/YOUR_GITHUB_USERNAME/REPO_NAME/blob/main/bloodbrone.markdown
+    about: 任何需求疑问先查任务书；与 README 冲突时以任务书为准。
+  - name: 贡献指南（分支模型 / 所有权 / 证据等级）
+    url: https://github.com/YOUR_GITHUB_USERNAME/REPO_NAME/blob/main/CONTRIBUTING.md
+    about: 提交 PR 前必读。

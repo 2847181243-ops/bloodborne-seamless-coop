@@ -1,0 +1,77 @@
+# 标签清单 —— 由 .github/workflows/labels.yml 同步到仓库
+# 格式：name|color|description
+# 不要在此文件或描述中使用 "|" 字符。
+
+# ── Issue 类型 ───────────────────────────────────────────────
+cross-agent|1d76db|跨 Agent 协作 / 接口变更 / 需要裁决
+reverse-engineering|5319e7|逆向工程：地址、签名、原版行为确认
+defect|d73a4a|运行时缺陷：Crash / 失步 / 存档损坏 / 重复奖励
+security|e11d21|安全相关：需 AI-C3 审计
+docs|0075ca|文档
+ci|0e8a16|CI / 工作流 / 仓库基础设施
+question|d876e3|需要确认的问题
+
+# ── 严重度 ───────────────────────────────────────────────────
+critical|b60205|严重：阻断合并或损坏存档
+high|d93f0b|高
+medium|fbca04|中
+low|0e8a16|低
+
+# ── 安全审计结论（AI-C3） ───────────────────────────────────
+audit:passed|0e8a16|安全审计通过
+audit:warning|fbca04|安全审计通过但有警告（须建 Issue 跟踪）
+audit:failed|b60205|安全审计 FAIL 一票否决 阻断合并
+
+# ── 状态 ─────────────────────────────────────────────────────
+blocked|b60205|被阻塞，等待其他 Agent 或外部确认
+needs-re|5319e7|需要逆向结论才能推进
+needs-audit|e11d21|等待安全审计
+wontfix|ffffff|明确不做（Out of Scope）
+duplicate|cfd3d7|重复问题
+
+# ── Agent 归属 ───────────────────────────────────────────────
+agent:a0|c5def5|AI-A0 平台适配
+agent:a1|c5def5|AI-A1 逆向与 Core Runtime
+agent:a2|c5def5|AI-A2 Session 与 Replication
+agent:a3|c5def5|AI-A3 Gameplay Systems
+agent:a4|c5def5|AI-A4 Balance 与 PvP
+agent:b1|c5def5|AI-B1 传输层
+agent:b2|c5def5|AI-B2 节点发现与信令
+agent:b3|c5def5|AI-B3 信誉与抗滥用
+agent:b4|c5def5|AI-B4 中继节点
+agent:c1|c5def5|AI-C1 密码学与 E2EE
+agent:c2|c5def5|AI-C2 安全架构与威胁模型
+agent:c3|c5def5|AI-C3 安全审计
+agent:c4|c5def5|AI-C4 渗透测试
+agent:lead|c5def5|AI-00 总控与集成
+
+# ── 功能域 ───────────────────────────────────────────────────
+domain:death|f9d0c4|死亡 / 重生 / 死亡惩罚
+domain:lantern|f9d0c4|Lantern Rest / World Reset
+domain:boss|f9d0c4|Boss 战 / 观战模式
+domain:world|f9d0c4|世界状态覆盖 / 区域切换
+domain:loot|f9d0c4|掉落 / 拾取 / 消耗品 / 商店 / NPC
+domain:pvp|f9d0c4|Invasion / PvP / 决斗场
+domain:network|f9d0c4|网络同步 / 传输 / 会话
+domain:save|f9d0c4|存档 / 数据持久化
+domain:anticheat|f9d0c4|反作弊 / 黑名单
+domain:balance|f9d0c4|Scaling / 平衡
+domain:platform|f9d0c4|bbport 平台适配
+
+# ── 阶段（任务书 §41） ───────────────────────────────────────
+phase-0-security-design|bfd4f2|Phase 0 安全设计
+phase-1-runtime-re|bfd4f2|Phase 1 环境与 bbport runtime 逆向
+phase-2-re-core|bfd4f2|Phase 2 逆向 Player / Death / Lantern / World
+phase-3-re-items|bfd4f2|Phase 3 逆向 Loot / Consumable / Shop / NPC
+phase-4-session|bfd4f2|Phase 4 Session / Network / 世界状态 / 独立存档
+phase-5-replication|bfd4f2|Phase 5 Player Replication
+phase-6-death-penalty|bfd4f2|Phase 6 普通区域多人死亡与 Max HP Penalty
+phase-7-sync|bfd4f2|Phase 7 Enemy / World Sync / Blood Echoes 归属
+phase-8-items|bfd4f2|Phase 8 Loot / Consumable / Shop / NPC 实现
+phase-9-boss|bfd4f2|Phase 9 Boss 与观战模式
+phase-10-lantern|bfd4f2|Phase 10 Lantern Reset
+phase-11-pvp|bfd4f2|Phase 11 Invasion / PvP / 网络异常
+phase-12-area|bfd4f2|Phase 12 区域切换
+phase-13-arena|bfd4f2|Phase 13 决斗场
+phase-14-balance|bfd4f2|Phase 14 Balance / 持久化 / 兼容性
+phase-15-regression|bfd4f2|Phase 15 Regression / Stability

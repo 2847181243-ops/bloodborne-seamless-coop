@@ -1,0 +1,63 @@
+# CODEOWNERS —— 代码所有权
+#
+# ⚠️ 占位符：请把 @YOUR_GITHUB_USERNAME 全部替换为你的 GitHub 账号（或 @org/team），
+#    否则 GitHub 的分支保护 / 必需审核人功能不会生效。
+#
+# 规则：**最后匹配的模式生效**（last match wins）。
+# 本文件与 .github/workflows/branch-policy.yml 的所有权映射必须保持一致。
+
+# ── 默认：仓库所有者 ─────────────────────────────────────────
+*                                   @YOUR_GITHUB_USERNAME
+
+# ── AI-00 总控：接口契约 / 集成 / 裁决 / CI 基础设施 ─────────
+/docs/interfaces/                   @YOUR_GITHUB_USERNAME
+/docs/integration/                  @YOUR_GITHUB_USERNAME
+/docs/conflict_log/                 @YOUR_GITHUB_USERNAME
+/.github/                           @YOUR_GITHUB_USERNAME
+/README.md                          @YOUR_GITHUB_USERNAME
+/CONTRIBUTING.md                    @YOUR_GITHUB_USERNAME
+/SECURITY.md                        @YOUR_GITHUB_USERNAME
+/docs/README.md                     @YOUR_GITHUB_USERNAME
+
+# ── AI-A1 逆向 & Core Runtime ────────────────────────────────
+/docs/re/                           @YOUR_GITHUB_USERNAME
+/mod/core/                          @YOUR_GITHUB_USERNAME
+
+# ── AI-A0 平台适配 ───────────────────────────────────────────
+/mod/platform/                      @YOUR_GITHUB_USERNAME
+
+# ── AI-A2 Session & Replication ──────────────────────────────
+/mod/session/                       @YOUR_GITHUB_USERNAME
+/mod/replication/                   @YOUR_GITHUB_USERNAME
+
+# ── AI-A3 Gameplay Systems ───────────────────────────────────
+/mod/gameplay/                      @YOUR_GITHUB_USERNAME
+
+# ── AI-A4 Balance & PvP ──────────────────────────────────────
+/mod/balance/                       @YOUR_GITHUB_USERNAME
+/config/                            @YOUR_GITHUB_USERNAME
+
+# ── AI-B1/B2/B3 网络基础设施 ─────────────────────────────────
+/mod/network/transport/             @YOUR_GITHUB_USERNAME
+/mod/network/discovery/             @YOUR_GITHUB_USERNAME
+/mod/network/reputation/            @YOUR_GITHUB_USERNAME
+
+# ── AI-B4 中继节点 ───────────────────────────────────────────
+/relay/                             @YOUR_GITHUB_USERNAME
+
+# ── AI-C1 密码学（其他 Agent 不得修改） ──────────────────────
+/mod/security/crypto/               @YOUR_GITHUB_USERNAME
+
+# ── AI-C2 安全架构 ───────────────────────────────────────────
+/docs/security/                     @YOUR_GITHUB_USERNAME
+
+# ── AI-C3 安全审计（开发 Agent 不得修改） ────────────────────
+/docs/audit/                        @YOUR_GITHUB_USERNAME
+/tools/audit/                       @YOUR_GITHUB_USERNAME
+
+# ── AI-C4 渗透测试 ───────────────────────────────────────────
+/docs/pentest/                      @YOUR_GITHUB_USERNAME
+/tools/pentest/                     @YOUR_GITHUB_USERNAME
+
+# ── 任务书：唯一需求来源，仅 AI-00 可改 ──────────────────────
+/bloodbrone.markdown                @YOUR_GITHUB_USERNAME

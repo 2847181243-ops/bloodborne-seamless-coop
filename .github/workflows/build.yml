@@ -1,0 +1,82 @@
+name: build
+
+# Phase 0 / Phase 1 尚无代码，构建步骤会自动跳过（不会产生红叉）。
+# 一旦仓库出现 CMakeLists.txt，本工作流自动开始在 windows-latest 上编译。
+#
+# 注意：Build Passed ≠ Feature Complete（任务书 §39）。
+
+on:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+      - 'lead/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: 探测构建系统
+    runs-on: ubuntu-latest
+    outputs:
+      has_cmake: ${{ steps.detect.outputs.has_cmake }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 检测 CMakeLists.txt
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f CMakeLists.txt ]]; then
+            echo "has_cmake=true" >> "$GITHUB_OUTPUT"
+            echo "检测到 CMakeLists.txt，将执行 Windows x64 构建。"
+          else
+            echo "has_cmake=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::仓库尚无 CMakeLists.txt（Phase 0 / Phase 1 尚未产出可编译代码），跳过构建。"
+          fi
+
+  windows:
+    name: Windows MSVC x64
+    needs: detect
+    if: needs.detect.outputs.has_cmake == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 配置
+        run: cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release
+
+      - name: 编译
+        run: cmake --build build --config Release --parallel
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: mod-windows-x64
+          path: |
+            build/**/*.dll
+            build/**/*.exe
+          if-no-files-found: warn
+          retention-days: 7
+
+  placeholder:
+    name: 构建门禁（无代码时占位）
+    needs: detect
+    if: needs.detect.outputs.has_cmake != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 说明
+        run: |
+          echo "::notice::当前没有可编译的代码，构建门禁按通过处理。"
+          echo "Build Passed ≠ Feature Complete（任务书 §39）。"

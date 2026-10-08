@@ -1,0 +1,98 @@
+name: pr-guard
+
+# 落实任务书 §38（五问）/ §39（验证标准）/ §44.14（AI-C3 一票否决）。
+# 注意：本工作流只校验「形式与门禁」，不代表内容已被 review 通过。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  template:
+    name: PR 模板必填章节
+    runs-on: ubuntu-latest
+    steps:
+      - name: 校验 PR 描述
+        shell: bash
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -uo pipefail
+
+          required=(
+            "改了什么"
+            "为什么改"
+            "修改了哪个模块"
+            "影响哪些系统"
+            "如何验证"
+            "是否存在兼容性风险"
+            "当前验证等级"
+          )
+
+          failed=0
+          for s in "${required[@]}"; do
+            if [[ "$BODY" != *"$s"* ]]; then
+              echo "::error::PR 描述缺少必需章节：「$s」。请使用 .github/PULL_REQUEST_TEMPLATE.md（任务书 §38）。"
+              failed=1
+            fi
+          done
+
+          if [[ $failed -eq 0 ]]; then
+            echo "✅ PR 模板章节完整。"
+          fi
+          exit $failed
+
+  security-gate:
+    name: 安全审计门禁（一票否决）
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 网络 / 安全代码必须有审计结论
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1 || true
+          mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD")
+
+          sensitive=0
+          for f in "${files[@]}"; do
+            case "$f" in
+              mod/security/*|mod/network/*|relay/*|tools/audit/*|tools/pentest/*)
+                echo "触及安全相关路径：$f"
+                sensitive=1
+                ;;
+            esac
+          done
+
+          if [[ $sensitive -eq 0 ]]; then
+            echo "✅ 未触及网络 / 安全代码，跳过审计门禁。"
+            exit 0
+          fi
+
+          echo "检测到网络 / 安全代码变更，检查审计标签（当前：$LABELS）"
+
+          if [[ ",$LABELS," == *",audit:failed,"* ]]; then
+            echo "::error::AI-C3 审计结论为 FAIL —— 一票否决，阻断合并（任务书 §44.14）。"
+            exit 1
+          fi
+
+          if [[ ",$LABELS," == *",audit:passed,"* || ",$LABELS," == *",audit:warning,"* ]]; then
+            echo "✅ 审计标签有效。"
+            exit 0
+          fi
+
+          echo "::error::网络 / 安全代码变更必须带 audit:passed 或 audit:warning 标签。请先提交安全审计请求（.github/ISSUE_TEMPLATE/security-audit.yml），审计报告写入 docs/audit/。"
+          exit 1

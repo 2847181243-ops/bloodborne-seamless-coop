@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────
+# Bloodborne Seamless Co-op Mod
+# 任何情况下都不得提交：游戏本体文件、解密素材、玩家存档、凭据
+# ─────────────────────────────────────────────────────────────
+
+# ── 游戏本体 / 商业素材（严禁提交） ──────────────────────────
+eboot.bin
+eboot.elf
+*.pkg
+*.pkg.bak
+Bloodborne.exe
+Bloodborne/
+GMsave/
+*.sl2
+*.sl2.bak
+*.bloodco
+*.bloodco.bak
+# 解密后的 PS4 存档 / 素材
+savedata/
+SPRJ0005/
+CUSA03173/
+CUSA01363/
+
+# ── 凭据 / 隐私（严禁提交） ──────────────────────────────────
+.env
+.env.*
+!.env.example
+*.token
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+secrets/
+credentials*
+
+# ── 构建产物 ─────────────────────────────────────────────────
+build/
+out/
+bin/
+obj/
+lib/
+dist/
+install/
+cmake-build-*/
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.obj
+*.o
+*.a
+*.so
+*.dylib
+*.asi
+*.log
+*.dmp
+*.mdmp
+
+# ── CMake / vcpkg ────────────────────────────────────────────
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+compile_commands.json
+vcpkg_installed/
+packages/
+
+# ── Visual Studio / Rider / VS Code ──────────────────────────
+.vs/
+.vscode/
+.idea/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+*.aps
+*.ncb
+*.sdf
+*.opendb
+*.VC.db
+ipch/
+
+# ── 运行时产物 / Mod 输出 ────────────────────────────────────
+mod/config/blacklist.json
+*.ini.local
+logs/
+crashdump/
+*.etl
+
+# ── 临时文件 ─────────────────────────────────────────────────
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+Thumbs.db
+desktop.ini
+.DS_Store

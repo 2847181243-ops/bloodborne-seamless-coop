@@ -1,0 +1,52 @@
+name: labels
+
+# 依据 .github/labels.yml 同步仓库标签。
+# 这是 pr-guard（audit:*）与 issue-triage 的前置条件 —— 标签不存在会打标签失败。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/labels.yml'
+      - '.github/workflows/labels.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    name: 同步标签
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 应用标签清单
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f .github/labels.yml ]]; then
+            echo "::error::缺少 .github/labels.yml"
+            exit 1
+          fi
+
+          count=0
+          while IFS='|' read -r name color desc; do
+            if [[ -z "${name}" || "${name}" == \#* ]]; then
+              continue
+            fi
+            if [[ -z "${color}" ]]; then
+              echo "::warning::标签 '$name' 缺少颜色，跳过。"
+              continue
+            fi
+            gh label create "$name" --color "$color" --description "${desc:-}" --force
+            count=$((count + 1))
+          done < .github/labels.yml
+
+          echo "✅ 已同步 $count 个标签。"

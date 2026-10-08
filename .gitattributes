@@ -1,0 +1,51 @@
+# 默认：自动检测文本文件并统一换行为 LF（仓库内），检出时按平台转换
+* text=auto
+
+# ── 文本文件 ─────────────────────────────────────────────────
+*.md        text
+*.markdown  text
+*.txt       text
+*.yml       text
+*.yaml      text
+*.json      text
+*.toml      text
+*.ini       text
+*.cfg       text
+*.cmake     text
+CMakeLists.txt text
+
+# ── 源码 ─────────────────────────────────────────────────────
+*.c         text
+*.h         text
+*.cpp       text
+*.hpp       text
+*.cc        text
+*.hh        text
+*.cxx       text
+*.ixx       text
+*.ps1       text
+*.py        text
+*.sh        text eol=lf
+
+# Windows 批处理必须保持 CRLF
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# ── 二进制 ───────────────────────────────────────────────────
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.exe       binary
+*.dll       binary
+*.lib       binary
+*.pdb       binary
+*.zip       binary
+*.7z        binary
+*.pak       binary
+
+# ── Git diff / 语言统计 ──────────────────────────────────────
+bloodbrone.markdown linguist-documentation
+docs/**             linguist-documentation
+.github/**          linguist-detectable=false

@@ -1,0 +1,114 @@
+name: 跨 Agent 任务 / 协作请求
+description: 接口变更、跨所有权修改、逆向结论冲突、需要其他 Agent 协助的事项（任务书 §50 / §52）
+title: "[TASK] "
+labels: ["cross-agent"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > 任务书 §50：**所有跨 AI 协作必须通过 Issue。**
+        > 任务书 §52 列出的情形**必须**建立 Issue，不允许口头结论直接生效。
+
+  - type: input
+    id: proposer
+    attributes:
+      label: 提出方 Agent
+      placeholder: "AI-A2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 类型
+      options:
+        - 接口契约变更
+        - 跨所有权文件修改
+        - 逆向结论冲突
+        - 需要其他 Agent 提供接口 / 数据
+        - 阻塞项上报
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景
+      description: 结合任务书章节说明上下文。
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: 观察到的现状
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 证据
+      description: 反汇编 / 交叉引用 / 运行时日志 / 行为实验。请标注证据等级。
+      placeholder: |
+        证据等级：Confirmed / Probable / Hypothesis / Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: modules
+    attributes:
+      label: 影响模块
+      placeholder: "mod/session/、docs/interfaces/、AI-A1 的 Hook 接口"
+    validations:
+      required: true
+
+  - type: textarea
+    id: cause
+    attributes:
+      label: 可能原因
+    validations:
+      required: false
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: 风险
+      description: 是否影响死亡 / Lantern / Boss / 存档 / 物品发放 / 网络协议 / 安全。
+    validations:
+      required: true
+
+  - type: textarea
+    id: solutions
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: 验收标准
+      description: 怎样算解决？贴出可执行的验证步骤。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arbiter
+    attributes:
+      label: 建议裁决方
+      options:
+        - AI-00（接口冲突）
+        - AI-C3（安全 vs 开发 / 功能）
+        - AI-C2（性能 vs 安全）
+        - 不需要裁决
+    validations:
+      required: true
