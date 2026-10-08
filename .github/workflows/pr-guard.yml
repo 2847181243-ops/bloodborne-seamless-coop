@@ -577,9 +577,40 @@ jobs:
   # ⚠️ 顺序要求：GitHub 规定「必需检查必须在过去 7 天内成功运行过」才能被设为必需。
   #    所以本 job 先落地并跑过一次，之后才把规则集改为只 require `gate`。
   # ---------------------------------------------------------------------------
+  # ─────────────────────────────────────────────────────────────
+  # 3) 回归矩阵
+  #    目的：让「门禁真的还在拦人」这件事本身被持续验证。
+  #
+  #    为什么必须放在 CI 里：这些用例此前只存在于开发机的临时目录，没人重跑。
+  #    一个从不重跑的检查等于装饰 —— 它可能早已失效而无人知道。
+  #    本项目实测发生过：检查里出现「自指」缺陷（要找的字符串也出现在它自己的
+  #    报错文案里），于是永远返回通过，删掉真正的配置也拦不住。
+  #
+  #    本 job 跑的是仓库内的真实套件 tools/preci/tests/，不是副本。
+  # ─────────────────────────────────────────────────────────────
+  regression:
+    name: 回归矩阵
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 装 PyYAML（workflow 结构检查需要）
+        run: python -m pip install --quiet pyyaml
+
+      # 退出码约定：0 通过；1 有失败；2 有未验证项。
+      # 2 在 CI 里按失败处理 —— "没检查"不等于"检查过且没问题"。
+      - name: 跑回归矩阵
+        run: python tools/preci/tests/run_all.py
+
   gate:
     name: gate
-    needs: [template, security-gate]
+    needs: [template, security-gate, regression]
     if: always()
     runs-on: ubuntu-latest
     steps:
