@@ -151,6 +151,52 @@ jobs:
               echo "::error file=$rf::「审计对象」为空（须写明 PR / commit SHA / 文件清单）。"
               failed=1
             fi
+
+            # ── 双人独立签核（C3-a / C3-b，缺一即阻断）─────────────────
+            # 判据：签核区内每个「- C3-x（…）」条目之后，到下一个 C3 条目之前，
+            # 必须出现「结论：<值>」，且 <值> 与 PR 标签推导出的期望结论一致。
+            if ! grep -qE '双人' "$rf"; then
+              echo "::error file=$rf::缺少「双人独立签核」区（模板见 docs/audit/README.md）。"
+              failed=1
+            fi
+
+            # 角色条目既可能是列表项 `- C3-a（…）`，也可能是表格行 `| C3-a | …`。
+            # 两种写法都接受（模板里两种都存在），统一用「该条目之后、下一个 C3 条目
+            # 之前的第一条『结论：』」作为该角色的判定。
+            signers=$(grep -cE '(^[[:space:]]*-+[[:space:]]*C3-[ab])|(^[[:space:]]*\|[[:space:]]*C3-[ab][[:space:]]*\|)' "$rf" || true)
+            if [[ "${signers:-0}" -lt 2 ]]; then
+              echo "::error file=$rf::双人签核不完整 —— 需同时存在 C3-a（密码学/协议/完整性）与 C3-b（隐私/中继/抗滥用），当前只找到 ${signers:-0} 个。"
+              failed=1
+            else
+              for role in C3-a C3-b; do
+                # 先定位该角色条目之后、下一个 C3 条目之前的那条「结论：」，
+                # 再用 sed 取值 —— awk 的 sub(/^.*[:：]/) 会因按字节贪婪匹配而
+                # 把值一起吃掉（实测 verdict 为空），sed 已验证可靠。
+                #
+                # ⚠️ 分支顺序不能改：必须先判「本行是否就是本角色的结论行」，
+                # 再判「是否遇到下一个 C3 条目」。因为 `| C3-a | … | 结论：PASS |`
+                # 这种表格行同时满足两个条件，若先判 stop 就会直接退出，
+                # 永远取不到判定（实测踩坑，导致所有正常报告都被误判为"未给出判定"）。
+                verdict_line=$(awk -v r="$role" '
+                  ($0 ~ ("^[[:space:]]*-+[[:space:]]*" r)) || ($0 ~ ("^[[:space:]]*\\|[[:space:]]*" r "[[:space:]]*\\|")) { found=1; next }
+                  found && /结论[[:space:]]*[:：]/ { print; exit }
+                  found && (($0 ~ /^[[:space:]]*-+[[:space:]]*C3-[ab]/) || ($0 ~ /^[[:space:]]*\|[[:space:]]*C3-[ab][[:space:]]*\|/)) { exit }
+                ' "$rf")
+                verdict=$(printf '%s' "$verdict_line" | sed -E 's/^.*[:：]//' | tr -d '[:space:]' || true)
+
+                if [[ -z "$verdict" ]]; then
+                  echo "::error file=$rf::$role 未给出「结论：」判定。"
+                  failed=1
+                  continue
+                fi
+                if [[ "$verdict" != "$expected" ]]; then
+                  echo "::error file=$rf::$role 的判定为 $verdict，与标签期望的 $expected 不一致（任一方 FAIL 即一票否决）。"
+                  failed=1
+                else
+                  echo "  ✅ $role 判定：$verdict"
+                fi
+              done
+            fi
           done
 
           if [[ $failed -ne 0 ]]; then
