@@ -11,18 +11,62 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  # 校验「关联 Issue」是否真实存在需要读 Issue。缺这一项时 gh api 会 403，
+  # 而下面的错误处理会把「API 失败」与「Issue 不存在」区分开来。
+  issues: read
 
 jobs:
   template:
     name: PR 模板必填章节
     runs-on: ubuntu-latest
     steps:
-      - name: 校验 PR 描述
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ─────────────────────────────────────────────────────────────
+      # 1) 章节存在 + 内容非空；关联 Issue 强制且必须真实存在
+      # ─────────────────────────────────────────────────────────────
+      - name: 校验 PR 描述（章节/内容/关联 Issue）
         shell: bash
         env:
           BODY: ${{ github.event.pull_request.body }}
+          PRNUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -uo pipefail
+
+          if [[ -z "${BODY:-}" ]]; then
+            echo "::error::PR 描述为空。请使用 .github/PULL_REQUEST_TEMPLATE.md 填写。"
+            exit 1
+          fi
+
+          failed=0
+
+          # 把正文切为「标题 -> 内容」两段，供下面复用。
+          # 全角/半角冒号、行尾空白、CRLF 均容错。
+          mapfile -t HD < <(printf '%s\n' "$BODY" | grep -nE '^#{1,3} ' || true)
+
+          section_content() {   # $1 = 标题关键字（子串匹配）
+            local key="$1" i start end
+            for i in "${!HD[@]}"; do
+              local ln="${HD[$i]}"
+              local num="${ln%%:*}"
+              local txt="${ln#*:}"
+              if [[ "$txt" == *"$key"* ]]; then
+                start=$((num + 1))
+                if (( i + 1 < ${#HD[@]} )); then
+                  end=$(( ${HD[$((i + 1))]%%:*} - 1 ))
+                else
+                  end=$(printf '%s\n' "$BODY" | wc -l)
+                fi
+                printf '%s\n' "$BODY" | sed -n "${start},${end}p" \
+                  | grep -vE '^[[:space:]]*(<!--|-->|$)' || true
+                return 0
+              fi
+            done
+          }
 
           required=(
             "改了什么"
@@ -34,18 +78,178 @@ jobs:
             "当前验证等级"
           )
 
-          failed=0
           for s in "${required[@]}"; do
-            if [[ "$BODY" != *"$s"* ]]; then
+            if ! printf '%s\n' "$BODY" | grep -qE "^#+ .*${s}"; then
               echo "::error::PR 描述缺少必需章节：「$s」。请使用 .github/PULL_REQUEST_TEMPLATE.md（任务书 §38）。"
+              failed=1
+              continue
+            fi
+            body=$(section_content "$s")
+            if [[ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]]; then
+              echo "::error::章节「$s」是空的 —— 只保留标题不算填写（任务书 §38 要求逐条回答）。"
               failed=1
             fi
           done
 
+          # ── 关联 Issue：强制且必须真实存在（§50 / §52）────────────────
+          # 模板字段：`- 关联 Issue：#123`
+          issue_line=$(printf '%s\n' "$BODY" | grep -E '^[[:space:]]*-?[[:space:]]*关联[[:space:]]*Issue' | head -1 || true)
+          if [[ -z "$issue_line" ]]; then
+            echo "::error::缺少「关联 Issue」字段（模板要求 `- 关联 Issue：#123`）。任务书 §50 要求所有跨 AI 协作必须通过 Issue，§52 要求跨所有权改动必须先建 Issue。"
+            failed=1
+          else
+            issue=$(printf '%s' "$issue_line" | grep -oE '#[0-9]+' | head -1 | tr -d '#' || true)
+            if [[ -z "$issue" ]]; then
+              echo "::error::「关联 Issue」未填写真实编号。当前为：$(printf '%s' "$issue_line" | sed 's/^[[:space:]]*//') —— 必须是 #<数字>，不得留模板占位符 #___。"
+              failed=1
+            else
+              # 校验该 Issue 真实存在（不是随手编的编号）
+              api_err=""
+              if ! ijson=$(gh api "repos/$GITHUB_REPOSITORY/issues/$issue" 2>&1); then
+                api_err="$ijson"
+              fi
+              if [[ -n "$api_err" ]]; then
+                echo "::error::读取 Issue #$issue 失败（这不能等同于『编号不存在』，需看原始错误）。常见原因：缺 issues: read 权限。原始错误：$(printf '%s' "$api_err" | head -2 | tr '\n' ' ')"
+                failed=1
+              else
+                ititle=$(printf '%s' "$ijson" | jq -r '.title' 2>/dev/null || true)
+                izstate=$(printf '%s' "$ijson" | jq -r '.state' 2>/dev/null || true)
+                echo "✅ 关联 Issue #$issue（$izstate）：${ititle:-（无标题）}"
+                if [[ "$izstate" == "closed" ]]; then
+                  echo "::warning::关联的 Issue #$issue 已关闭 —— 若本 PR 与其无关，请改引用正确的 Issue。"
+                fi
+              fi
+            fi
+          fi
+
           if [[ $failed -eq 0 ]]; then
-            echo "✅ PR 模板章节完整。"
+            echo "✅ PR 描述校验通过（7 个必需章节非空 + 关联 Issue 有效）。"
           fi
           exit $failed
+
+      # ─────────────────────────────────────────────────────────────
+      # 2) 把「自我声明的勾选」换成「机器看证据」
+      #    原则：机器能验的一律不靠勾选；只保留确实只有人才能声明的。
+      # ─────────────────────────────────────────────────────────────
+      - name: 机器可验证项（勾选之外的真实检查）
+        shell: bash
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+
+          git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1 || true
+          mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD" || true)
+
+          section_content() {   # 与上一步同构：取某章节的非注释正文
+            local key="$1" i start end
+            mapfile -t HD < <(printf '%s\n' "$BODY" | grep -nE '^#{1,3} ' || true)
+            for i in "${!HD[@]}"; do
+              local ln="${HD[$i]}"
+              local num="${ln%%:*}"
+              local txt="${ln#*:}"
+              if [[ "$txt" == *"$key"* ]]; then
+                start=$((num + 1))
+                if (( i + 1 < ${#HD[@]} )); then
+                  end=$(( ${HD[$((i + 1))]%%:*} - 1 ))
+                else
+                  end=$(printf '%s\n' "$BODY" | wc -l)
+                fi
+                printf '%s\n' "$BODY" | sed -n "${start},${end}p" \
+                  | grep -vE '^[[:space:]]*(<!--|-->|$)' || true
+                return 0
+              fi
+            done
+          }
+
+          checked() {   # $1 = 章节关键字；打印该章节内已勾选项数
+            # ⚠️ 末尾必须 `|| true`：grep 无匹配时返回 1，在 `$( )` + `set -e` 下会让
+            # 赋值语句非零退出，脚本在打印 ::error 之前就结束 —— 造成「红了但没说原因」。
+            section_content "$1" | grep -oE '\[[xX]\]' | wc -l | tr -d ' ' || true
+          }
+
+          box_total() {  # $1 = 章节关键字；打印该章节 checkbox 总数（勾与未勾都算）
+            # 必须把未勾的 `- [ ]` 一并计入：否则「只勾了 3 个、剩 4 个未勾」会被算成
+            # 3/3「全部勾选」而放行（实测踩过）。
+            section_content "$1" | grep -cE '^[[:space:]]*-[[:space:]]*\[[ xX]\]' || true
+          }
+
+          failed=0
+          declare -A touched=()
+          for f in "${files[@]}"; do
+            case "$f" in
+              mod/security/*|mod/network/*|relay/*|tools/audit/*|tools/pentest/*|\
+              mod/session/*|mod/replication/*|mod/gameplay/*|mod/core/*|mod/platform/*|config/*)
+                touched[security]=1 ;;
+            esac
+            case "$f" in
+              docs/re/*|mod/core/*) touched[re]=1 ;;
+            esac
+          done
+
+          # ── A. 验证等级：必须且只能勾一个（§39 五级链路）──────────────
+          vl=$(checked "如何验证")
+          if [[ "${vl:-0}" -eq 0 ]]; then
+            echo "::error::「如何验证」未勾选任何验证等级。任务书 §39 要求声明本 PR 达到的验证等级。"
+            failed=1
+          elif [[ "$vl" -gt 1 ]]; then
+            echo "::error::「如何验证」勾选了 $vl 个验证等级 —— 必须且只能勾 1 个（§39 不允许跳级/并列声明）。"
+            failed=1
+          else
+            lvl=$(section_content "如何验证" | grep -E '\[[xX]\]' | head -1)
+            echo "✅ 验证等级：$(printf '%s' "$lvl" | sed 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*//')"
+          fi
+
+          # ── B. 证据等级：改动触及 docs/re/ 或 mod/core/ 时必须勾（§4）───
+          if [[ -n "${touched[re]:-}" ]]; then
+            ec=$(checked "证据等级")
+            if [[ "${ec:-0}" -eq 0 ]]; then
+              echo "::error::本 PR 触及 docs/re/ 或 mod/core/，但「证据等级」未勾选任何项。任务书 §4 要求每条逆向结论标注 Confirmed / Probable / Hypothesis / Unknown。"
+              failed=1
+            else
+              echo "✅ 触及逆向范围，证据等级已勾选（$ec 项）。"
+            fi
+          fi
+
+          # ── C. 安全自检：触及安全敏感路径时必须全部勾选 ────────────────
+          if [[ -n "${touched[security]:-}" ]]; then
+            total=$(box_total "安全自检")
+            done_n=$(checked "安全自检")
+            if [[ "${done_n:-0}" -eq 0 || "$done_n" -lt "${total:-0}" ]]; then
+              echo "::error::本 PR 触及安全 / 网络 / 存档 / 物品发放路径，但「安全自检」未全部勾选（已勾 ${done_n:-0} / 共 ${total:-0}）。该清单是提交前强制自检（.github/ISSUE_TEMPLATE/security-audit.yml 同一基线）。"
+              failed=1
+            else
+              echo "✅ 触及安全范围，安全自检 $done_n/$total 全部勾选。"
+            fi
+          fi
+
+          # ── D. 凭据扫描：不再靠"我保证没提交凭据"，直接扫 diff ──────────
+          # 只扫新增行，避免历史误报。
+          cred_pat='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|gho_[A-Za-z0-9]{20,}|ghs_[A-Za-z0-9]{20,}|-----BEGIN[A-Z ]*PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,}'
+          cred_hits=$(git diff "origin/$BASE_REF...HEAD" \
+            | grep -E '^\+' | grep -vE '^\+\+\+' \
+            | grep -nE "$cred_pat" || true)
+          if [[ -n "$cred_hits" ]]; then
+            echo "::error::新增内容中疑似包含凭据 / 私钥（SECURITY.md §9：仓库不得提交任何凭据）。命中："
+            printf '%s\n' "$cred_hits" | head -5
+            failed=1
+          else
+            echo "✅ 凭据扫描：新增行中未发现凭据 / 私钥特征。"
+          fi
+
+          # ── E. 变更声明与实际改动一致性（机器可验的那部分）──────────────
+          sec_n=$(checked "修改了哪个模块")
+          if [[ "${sec_n:-0}" -eq 0 ]]; then
+            echo "::error::「修改了哪个模块」未勾选任何模块。"
+            failed=1
+          fi
+
+          if [[ $failed -eq 0 ]]; then
+            echo "✅ 机器可验证项全部通过（本步骤不依赖勾选，而是直接看 diff 与正文证据）。"
+          fi
+          exit $failed
+
   security-gate:
     name: 安全审计门禁（一票否决）
     runs-on: ubuntu-latest
