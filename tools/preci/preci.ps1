@@ -326,8 +326,12 @@ fi
 bad=""
 while IFS= read -r -d '' f; do
   case "$f" in
-    *.png|*.jpg|*.jpeg|*.gif|*.ico|*.zip|*.dll|*.exe|*.bin|*.sl2|*.lib|*.obj) continue;;
+    *.png|*.jpg|*.jpeg|*.gif|*.ico|*.zip|*.dll|*.exe|*.bin|*.sl2|*.lib|*.obj|\
+    *.pyc|*.pyo|*.so|*.dylib|*.pdb|*.pak|*.7z|*.ttf|*.woff|*.woff2) continue;;
   esac
+  # 二进制文件即使扩展名没列到，也不该按 UTF-8 文本读。
+  # 实测：tools/preci/__pycache__/*.pyc 曾因扩展名未列入而被报 invalid-UTF8。
+  if head -c 4096 "$f" 2>/dev/null | LC_ALL=C grep -qP '\x00' 2>/dev/null; then continue; fi
   [ -f "$f" ] || continue
   if ! iconv -f UTF-8 -t UTF-8 "$f" >/dev/null 2>&1; then
     bad="$bad $f(invalid-UTF8)"

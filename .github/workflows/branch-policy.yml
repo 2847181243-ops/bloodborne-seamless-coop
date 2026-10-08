@@ -47,7 +47,12 @@ jobs:
           declare -A SCOPE=(
             # tools/preci/ 是 AI-00 的本地预检与门禁基础设施（与 .github/ 同类，
             # 属 CI 基础设施）。遗漏它会让任何 lead/* PR 触碰它都被判越界。
-            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ .github/ .dsh/ tools/preci/ docs/README.md README.md CONTRIBUTING.md SECURITY.md bloodbrone.markdown .gitignore .gitattributes .editorconfig"
+            #
+            # 构建与代码标准配置同样归 AI-00：
+            #   CMakeLists.txt / .clang-format / .clang-tidy / docs/standards/
+            #   它们是「项目级标准」，改一次影响所有 Agent 的模块，
+            #   不能由某个 Agent 在自己的分支里单独改。
+            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ docs/standards/ .github/ .dsh/ tools/preci/ docs/README.md README.md CONTRIBUTING.md SECURITY.md bloodbrone.markdown .gitignore .gitattributes .editorconfig CMakeLists.txt .clang-format .clang-tidy"
             [a0]="mod/platform/"
             [a1]="docs/re/ mod/core/"
             [a2]="mod/session/ mod/replication/"

@@ -51,7 +51,9 @@ TEXT_GLOBS = SRC_GLOBS + ["*.md", "*.markdown", "*.txt", "*.yml", "*.yaml",
                           "*.cmd"]
 BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".exe", ".dll", ".lib",
               ".pdb", ".zip", ".7z", ".pak", ".sl2", ".bin", ".obj", ".so",
-              ".dylib", ".woff", ".woff2", ".ttf"}
+              ".dylib", ".woff", ".woff2", ".ttf",
+              # compiled Python: binary, and it slipped into a commit once
+              ".pyc", ".pyo"}
 
 # Files that legitimately use CRLF (per .gitattributes)
 CRLF_GLOBS = ["*.bat", "*.cmd", "*.ps1"]
