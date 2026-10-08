@@ -64,7 +64,11 @@ squash 合并 → main 永远线性；合并后自动删除源分支
 
 ### 合并前的硬性前置
 
+> **本地预检必须先通过，才能请求合并。**（详见 [`tools/preci/README.md`](tools/preci/README.md)）
+
 ```text
+[ ] tools/preci/preci.ps1              阶段 1 全绿（push 之前）
+[ ] tools/preci/preci.ps1 -Stage 2 -Pr <编号>   阶段 2 全绿（请求合并之前）
 [ ] 6 项必需检查全绿（见 .dsh/skills/bbcoop-github-ops/SKILL.md 第 3 节）
 [ ] 触及 mod/security/**、mod/network/**、relay/**、tools/audit/**、tools/pentest/** 时：
     带 audit:passed / audit:warning 标签，且 PR 内新增 docs/audit/ 报告，
@@ -72,6 +76,15 @@ squash 合并 → main 永远线性；合并后自动删除源分支
 [ ] 跨所有权改动已建 cross-agent Issue（§52）
 [ ] 无凭据 / 游戏本体 / 玩家存档入库（SECURITY.md §9）
 ```
+
+**为什么要本地预检**：本项目曾在同一轮里连续 3 次「推上去才发现门禁不过」。
+CI 反馈慢、消耗 Actions 额度，而绝大多数失败是**纯本地可判定的**。
+
+**预检不替代 CI**：客户端钩子可被 `--no-verify` 绕过，真正的强制点在 CI 与规则集。
+预检的价值是把发现失败的**时间**从「推上去之后」提前到「push 之前」。
+
+**阶段 2 为什么不能省**：45 个阻断项里有 29 个依赖 PR 描述与标签，
+push 之前不可能存在。跳过阶段 2 等于让这些门禁在合并前从未被验证过。
 
 ---
 
