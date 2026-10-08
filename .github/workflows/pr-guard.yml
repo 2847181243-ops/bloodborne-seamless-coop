@@ -46,7 +46,10 @@ jobs:
 
           # 把正文切为「标题 -> 内容」两段，供下面复用。
           # 全角/半角冒号、行尾空白、CRLF 均容错。
-          mapfile -t HD < <(printf '%s\n' "$BODY" | grep -nE '^#{1,3} ' || true)
+          # Boundaries are '#'/'##' only. Including '###' made a section whose
+            # entire body is subsections (e.g. '## 如何验证' followed by
+            # '### 1. ...') look EMPTY, because heading lines are dropped.
+            mapfile -t HD < <(printf '%s\n' "$BODY" | grep -nE '^#{1,2} ' || true)
 
           section_content() {   # $1 = 标题关键字（子串匹配）
             local key="$1" i start end
@@ -105,10 +108,18 @@ jobs:
             else
               # 校验该 Issue 真实存在（不是随手编的编号）
               api_err=""
-              if ! ijson=$(gh api "repos/$GITHUB_REPOSITORY/issues/$issue" 2>&1); then
+              gh_ok=1
+              if ! command -v gh >/dev/null 2>&1; then
+                # Local pre-CI has no gh CLI. Say so plainly instead of printing
+                # a confusing "读取 Issue 失败" that looks like a permissions bug.
+                gh_ok=0
+                echo "::notice::本机没有 gh 命令，跳过「Issue 是否存在」的核对（CI 里会核对）。"
+              elif ! ijson=$(gh api "repos/$GITHUB_REPOSITORY/issues/$issue" 2>&1); then
                 api_err="$ijson"
               fi
-              if [[ -n "$api_err" ]]; then
+              if [[ "$gh_ok" -eq 0 ]]; then
+                : # 已在上面说明；本地不判定这一项
+              elif [[ -n "$api_err" ]]; then
                 echo "::error::读取 Issue #$issue 失败（这不能等同于『编号不存在』，需看原始错误）。常见原因：缺 issues: read 权限。原始错误：$(printf '%s' "$api_err" | head -2 | tr '\n' ' ')"
                 failed=1
               else
@@ -144,7 +155,10 @@ jobs:
 
           section_content() {   # 与上一步同构：取某章节的非注释正文
             local key="$1" i start end
-            mapfile -t HD < <(printf '%s\n' "$BODY" | grep -nE '^#{1,3} ' || true)
+            # Boundaries are '#'/'##' only. Including '###' made a section whose
+            # entire body is subsections (e.g. '## 如何验证' followed by
+            # '### 1. ...') look EMPTY, because heading lines are dropped.
+            mapfile -t HD < <(printf '%s\n' "$BODY" | grep -nE '^#{1,2} ' || true)
             for i in "${!HD[@]}"; do
               local ln="${HD[$i]}"
               local num="${ln%%:*}"
