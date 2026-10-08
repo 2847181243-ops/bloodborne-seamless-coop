@@ -27,44 +27,62 @@ description: 本仓库的 GitHub 自动化运维手册——标签唯一来源�
 |---|---|---|
 | 结构 | `docs-structure.yml` | 29 个必需文件缺任一 |
 | 所有权 | `branch-policy.yml` | 分支名不匹配 `agent/<a0..c4>-*` 或 `lead/*`；改动文件越出该 Agent 范围 |
-| 内容 | `pr-guard.yml` | PR 描述缺 7 个必填章节；或触及 `mod/security/*`、`mod/network/*`、`relay/*`、`tools/audit/*`、`tools/pentest/*` 却没有 `audit:passed`/`audit:warning`；或带了 `audit:failed` |
+| 内容 | `pr-guard.yml` | PR 描述缺 7 个必填章节；或触及 `mod/security/*`、`mod/network/*`、`relay/*`、`tools/audit/*`、`tools/pentest/*` 时：带 `audit:failed`、缺审计标签、**缺审计报告文件**、报告结论与标签不一致、或报告「审计对象」为空 |
+| 编码 | `repo-integrity.yml` | 非 UTF-8 / 含 U+FFFD / 含 GBK 残留标记字；或 CODEOWNERS 规则行缩进、缺 `@owner`、规则行数为 0、缺审计与密码学路径条目 |
 
-`build.yml` 在仓库没有 `CMakeLists.txt` 时自动跳过（不会红叉），有代码后自动在 `windows-latest` 上编译。
+> 审计门禁**不再只看标签**：带 `audit:passed`/`audit:warning` 的同时，本 PR 必须
+> 新增 `docs/audit/audit_<模块>_<YYYYMMDD>.md`，且其中「结论」须与标签一致
+> （`audit:passed`→`PASS`，`audit:warning`→`PASS_WITH_WARNING`）、「审计对象」非空。
+
+`build.yml` 在仓库没有 `CMakeLists.txt` 时走「无代码时的说明」步骤并判通过，有代码后自动在 `windows-latest` 上编译（**单一 job，上下文名恒定**）。
 另有 `labels.yml`（标签同步）与 `issue-triage.yml`（Issue 自动标注路由）。
 
 ---
 
-## 3. 分支保护（推送后立刻配）
+## 3. 分支保护 / 规则集（推送后立刻配）
 
-```bash
-gh api -X PUT "repos/$OWNER/$REPO/branches/main/protection" \
-  -H "Accept: application/vnd.github+json" --input - <<'JSON'
-{
-  "required_status_checks": {
-    "strict": true,
-    "contexts": [
-      "必需文件与目录结构",
-      "分支命名与写入范围",
-      "PR 模板必填章节",
-      "安全审计门禁（一票否决）",
-      "构建门禁（无代码时占位）"
-    ]
-  },
-  "enforce_admins": true,
-  "required_pull_request_reviews": {
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": true,
-    "required_approving_review_count": 1
-  },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false,
-  "required_conversation_resolution": true
-}
-JSON
+> **优先用 Rulesets**（Settings → Rules → Rulesets），因为 **Copilot code review
+> 只能作为 ruleset 规则自动触发**；经典分支保护的 `/branches/main/protection` 不支持它。
+> 两者可以并存，同时存在时取更严格者。若走 UI/API 建规则集，**本步骤需要
+> `administration:write` 权限**，deploy key（只能读写 git 对象）做不到。
+>
+> 注意：本仓库**已建立规则集 `main-protection`（id 24735428，enforcement=active）**，
+> 作用于 `refs/heads/main`，含 `deletion` + `non_fast_forward` + `pull_request` +
+> `required_status_checks`（strict）。`pull_request` 规则刻意设
+> `required_approving_review_count=0` 与 `require_code_owner_review=false`，
+> 因为 CODEOWNERS 是单账号，开启后**作者无法合并自己的 PR**。
+> 查询/修改变更见本文件第 4 节的 API 示例。
+
+### 必须设为必需的检查上下文（与 job `name:` 逐字一致）
+
+```text
+必需文件与目录结构            docs-structure.yml
+分支命名与写入范围            branch-policy.yml
+PR 模板必填章节               pr-guard.yml
+安全审计门禁（一票否决）      pr-guard.yml
+文件编码与 CODEOWNERS 完整性  repo-integrity.yml
+构建门禁（Windows MSVC x64）  build.yml
 ```
 
-⚠️ `contexts` 必须与 job 的 `name:` 完全一致。改过 workflow 的 `name` 后要回来同步，否则状态检查永远 pending。
+⚠️ **不要**把 `build.yml` 的构建拆成两个 `if:` 互斥的 job（历史坑）：曾经写成
+`Windows MSVC x64`（有代码时）与 `构建门禁（无代码时占位）`（无代码时）两个
+`if:` 互斥的 job，设为必需检查后有两种坏情况——必需的是当前不运行的那个 job
+时，上下文一直没有报告，分支保护停在 "Expected — Waiting for status to be
+reported"；必需的是被 `if:` 跳过的那个 job 时，按 GitHub 文档被条件跳过的 job
+**报告 Success**，等于门禁被静默绕过。现已统一为单一 job，名恒定为
+`构建门禁（Windows MSVC x64）`。
+
+⚠️ **真正会「永远 Pending」的是被路径/分支过滤掉、整个 workflow 不触发的情况。**
+因此以下上下文**不能**作为必需检查：`同步标签`（`labels.yml` 有 `paths` 过滤）、
+`自动标注`（`issue-triage.yml` 用 `issues` 事件，不属于可用触发类型）、
+`open-pr`（`open-fix-pr.yml` 有 `paths` 过滤）。<https://docs.github.com/en/actions/concepts/security/github_token> 另见
+Mergify 对 path filter 与 CI 门禁差异的说明：<https://mergify.com/blog/path-filters-are-not-a-ci-gate>。
+
+⚠️ `contexts` 必须与 job 的 `name:` 完全一致（含全角括号）。改过 workflow 的
+`name` 后要回来同步，否则状态检查永远 pending。
+
+⚠️ `require_code_owner_reviews: true` 与**单账号 CODEOWNERS** 组合会让唯一的仓库
+账号无法合并自己开的 PR（GitHub 不允许自审）。要么加第二个协作者，要么先不开这一项。
 另建议在仓库设置里勾选 **Allow auto-merge** 与 **Automatically delete head branches**。
 
 ---
@@ -91,6 +109,35 @@ gh run list --limit 20
 gh run view <run-id> --log-failed
 gh workflow run labels.yml
 ```
+
+### ⚠️ 本机 HTTPS 走 `api.github.com` 会被 Steam++ 中间人（必读）
+
+本机 `hosts` 把 `github.com` / `api.github.com` 指向 `127.0.0.1`，而
+`Steam++.Accelerator` 监听 `0.0.0.0:443` 做 TLS 中间人，其根证书
+`CN=SteamTools Certificate, O=BeyondDimension` 已装入 `LocalMachine\Root`，
+所以 Windows 认为它可信。**任何"正常"发出的 token 都被该代理可见。**
+
+判定方法（`Server` 头会暴露代理）：
+
+```powershell
+# 被中间人：Server: github.com,WattToolkit
+Invoke-WebRequest https://api.github.com/zen -UseBasicParsing | % Headers
+# curl 的 Schannel 后端反而会拒绝该伪造证书（CRYPT_E_NO_REVOCATION_CHECK）
+curl.exe https://api.github.com/zen        # -> exit 35
+```
+
+**必须用 `--resolve` 钉住真实 IP 绕过它**（已在本机封装好）：
+
+```powershell
+# ~/.config/dsh/gh-api.ps1 提供 Invoke-GitHubApi；profile 已 dot-source
+Invoke-GitHubApi '/repos/OWNER/REPO/rulesets'
+Invoke-GitHubApi -Method POST -Path '/repos/OWNER/REPO/rulesets' -Body $json
+```
+
+Token 存放：`~/.config/dsh/token.txt`（ACL 已收紧为仅当前用户 + SYSTEM + Administrators），
+由 `~/.config/dsh/gh.ps1` 读入 `$env:GITHUB_TOKEN`。**凭据一律不得入库**（任务书 §2.4 / SECURITY.md §9）。
+
+`gh` CLI **未安装**；若安装，也需同样处理 hosts 劫持（`gh` 走 HTTPS 同样被中间人）。
 
 ---
 
