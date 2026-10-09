@@ -434,6 +434,65 @@ jobs:
               failed=1
             fi
 
+            # ── 可核对证据 ──────────────────────────────────────────────
+            # 旧实现只验格式：报告存在 + 结论行合法 + 双人签名。
+            # **结论是否属实，完全没有验证。** 编一段话加两个签名即可通过。
+            #
+            # 要求每条证据给出被检文件的路径与其 sha256，门禁**重算并比对**。
+            # 为什么这能提高可信度：写一个错的哈希需要真的去算过哈希，
+            # 而算哈希的前提是文件确实在手边被检查过；随手编一段话不会带上它。
+            # 这不是证明（哈希可以抄），但它把"零成本伪造"变成了"必须接触真实文件"。
+            # 格式：  证据：<仓库内相对路径> | sha256=<64位十六进制> | <查了什么>
+            ev_lines=$(printf '%s\n' "$content" \
+              | grep -E '^[[:space:]]*[-*][[:space:]]*证据[[:space:]]*[:：]' || true)
+            ev_count=$(printf '%s\n' "$ev_lines" | grep -c . || true)
+            if [[ "${ev_count:-0}" -eq 0 ]]; then
+              echo "::error file=$rf::缺少可核对证据。每条结论至少要有 1 行「- 证据：<文件> | sha256=<哈希> | <查了什么>」。只写结论不等于有证据。"
+              failed=1
+            else
+              ev_ok=0
+              # 用 while read 而非 for，避免路径中的空白被拆散
+              while IFS= read -r line; do
+                [[ -z "$line" ]] && continue
+                body=${line#*证据}
+                body=${body#*[:：]}
+                # 取第一个字段作为路径（用 | 分隔）
+                ev_path=$(printf '%s' "$body" | awk -F'|' '{print $1}' \
+                  | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+                ev_hash=$(printf '%s' "$body" | grep -oE 'sha256=[0-9a-fA-F]{64}' \
+                  | head -1 | cut -d= -f2 || true)
+                if [[ -z "$ev_path" ]]; then
+                  echo "::error file=$rf::证据行缺少文件路径：$(printf '%s' "$line" | cut -c1-80)"
+                  failed=1; continue
+                fi
+                if [[ -z "$ev_hash" ]]; then
+                  echo "::error file=$rf::证据行缺少 sha256=<64 位十六进制>：$ev_path"
+                  failed=1; continue
+                fi
+                if [[ ! -f "$ev_path" ]]; then
+                  echo "::error file=$rf::证据指向的文件不存在：$ev_path（必须是仓库内的真实文件）"
+                  failed=1; continue
+                fi
+                # 被检文件必须在本 PR 的改动范围内，防止拿一个无关的稳定文件凑证据
+                # （`files` 是本步骤开头用 git diff 取到的改动清单）
+                if ! printf '%s\n' "${files[@]}" | grep -qxF "$ev_path"; then
+                  echo "::error file=$rf::证据指向的 $ev_path 不在本 PR 的改动范围内 —— 证据必须针对本次改动。"
+                  failed=1; continue
+                fi
+                actual=$(sha256sum "$ev_path" | cut -d' ' -f1)
+                if [[ "$(printf '%s' "$ev_hash" | tr 'A-Z' 'a-z')" != "$actual" ]]; then
+                  echo "::error file=$rf::证据哈希不符：$ev_path 实际为 $actual，报告写的是 $ev_hash。要么文件在报告之后被改过，要么哈希是编的。"
+                  failed=1; continue
+                fi
+                echo "  ✅ 证据核对通过：$ev_path"
+                ev_ok=$((ev_ok + 1))
+              done <<< "$ev_lines"
+              if [[ "$ev_ok" -eq 0 ]]; then
+                echo "::error file=$rf::没有任何一条证据通过核对。"
+                failed=1
+              fi
+            fi
+
             # ── 双人独立签核 ────────────────────────────────────────────
             # 只在「双人」标题之后的**当前区段**内解析（到下一个同级/更高级标题为止），
             # 且每个角色**恰好一条**结论行。
@@ -518,9 +577,52 @@ jobs:
   # ⚠️ 顺序要求：GitHub 规定「必需检查必须在过去 7 天内成功运行过」才能被设为必需。
   #    所以本 job 先落地并跑过一次，之后才把规则集改为只 require `gate`。
   # ---------------------------------------------------------------------------
+  # ─────────────────────────────────────────────────────────────
+  # 3) 回归矩阵
+  #    目的：让「门禁真的还在拦人」这件事本身被持续验证。
+  #
+  #    为什么必须放在 CI 里：这些用例此前只存在于开发机的临时目录，没人重跑。
+  #    一个从不重跑的检查等于装饰 —— 它可能早已失效而无人知道。
+  #    本项目实测发生过：检查里出现「自指」缺陷（要找的字符串也出现在它自己的
+  #    报错文案里），于是永远返回通过，删掉真正的配置也拦不住。
+  #
+  #    ⚠️ 为什么用 runner 矩阵（而不是只跑 ubuntu）：
+  #    其中两个套件驱动 tools/preci/preci.ps1，那是给 **Windows PowerShell 5.1**
+  #    写的脚本。一开始只在 ubuntu 上跑，连续三轮失败全是同一类平台假设
+  #    （powershell.exe → SystemRoot → git.exe → USERPROFILE），每次修一个又冒出
+  #    下一个 —— 那是在 Linux 上硬凑 Windows 环境，方向错了。
+  #    现在：Windows runner 跑 PowerShell 套件，Linux runner 跑其余，各跑该跑的。
+  #
+  #    本 job 跑的是仓库内的真实套件 tools/preci/tests/，不是副本。
+  # ─────────────────────────────────────────────────────────────
+  regression:
+    name: 回归矩阵（${{ matrix.os }}）
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 装 PyYAML（workflow 结构检查需要）
+        run: python -m pip install --quiet pyyaml
+
+      # 退出码约定：0 通过；1 有失败；2 有「期望运行但没能运行」的检查。
+      # 2 在 CI 里按失败处理 —— "没检查"不等于"检查过且没问题"。
+      # 因本环境不具备条件而跳过的套件（如 CI 上没有本地 GitHub token）不计入 2。
+      - name: 跑回归矩阵
+        run: python tools/preci/tests/run_all.py
+
   gate:
     name: gate
-    needs: [template, security-gate]
+    needs: [template, security-gate, regression]
     if: always()
     runs-on: ubuntu-latest
     steps:

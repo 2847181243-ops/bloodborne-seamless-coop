@@ -6,16 +6,62 @@
 
 ---
 
+## 从哪开始
+
+**不要记下面那些命令，用单一入口：**
+
+```bash
+python tools/bbcoop.py verify      # 提交前跑这个（预检 + 回归矩阵）
+python tools/bbcoop.py check       # 只跑预检
+python tools/bbcoop.py test        # 只跑回归矩阵
+python tools/bbcoop.py doctor      # 环境与工具链现状
+python tools/bbcoop.py status      # 当前分支 / 改动 / 归属
+```
+
+**退出码在整条链上含义一致**（`bbcoop.py`、`preci.ps1`、`tests/run_all.py`）：
+
+| 码 | 含义 |
+|---|---|
+| `0` | 通过 |
+| `1` | 有失败 |
+| `2` | **有未验证项（跳过）** —— 不等于通过 |
+| `3` | 无法启动（参数 / 环境问题） |
+
+> `2` 是刻意独立于 `0` 的。把"本机没有工具所以跳过"当成"检查过且没问题"，
+> 就是制造虚假信心。
+
+---
+
 ## 文件
 
 | 文件 | 作用 |
 |---|---|
-| `preci.ps1` | 预检主程序。**纯 ASCII**（理由见下） |
+| `preci.ps1` | 预检主程序。**UTF-8 带 BOM**（理由见下） |
 | `gates.yml` | 单一事实来源：每个检查、对应 CI 上下文、阶段归属、`never_require` |
 | `validate_workflows.py` | 用真实 YAML 解析器校验 workflow 结构 |
 | `fetch_pr.py` | 阶段 2 取 PR 描述与标签（**独立进程**，理由见下） |
+| `check_style.py` | 代码规范与注释纪律（扫**已提交的 blob**，不是工作区） |
 | `messages.json` | 全部中文文案（UTF-8 显式读取） |
+| `tests/` | **回归矩阵** —— 见下 |
 | `README.md` | 本文件 |
+
+### `tests/` 为什么必须存在，且必须在 CI 里跑
+
+这些用例此前只存在于开发机的临时目录，路径写死、没人重跑。
+
+**一个从不重跑的检查等于装饰** —— 它可能早已失效而无人知道。
+本项目**实测发生过**：检查里出现「自指」缺陷（要找的字符串也出现在它自己的报错
+文案里），于是永远返回通过，把真正的编译选项删掉也拦不住。
+
+现在它们：
+
+- 在仓库里（协作者可见、可改、可加）；
+- 路径全部相对推导，换机器照样跑；
+- 由 `.github/workflows/pr-guard.yml` 的 `回归矩阵` job 在**每个 PR** 上执行；
+- 由 `python tools/bbcoop.py verify` 在本地执行。
+
+`tests/run_all.py` 里的 `needs` 字段声明了每个套件需要什么能力
+（bash / PyYAML）。**缺能力时整套报「跳过」并计入未验证，而不是静默算通过。**
 
 ### 为什么 `fetch_pr.py` 是独立进程
 
