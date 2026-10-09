@@ -1,0 +1,98 @@
+name: ruleset-drift
+
+# 定期核对 GitHub 上的规则集是否仍与 tools/preci/gates.yml 一致。
+#
+# ⚠️ 为什么必须有这个 workflow
+#
+# tools/preci/tests/ 里 10 个套件回答的是「门禁还拦不拦得住坏 PR」。
+# **它们回答不了另一个问题：GitHub 上的门禁配置还是我们以为的那个样子吗？**
+#
+# 实测缺口：validate_workflows.py 只比对 gates.yml 与 workflow **文件**，
+# 从不看 GitHub。所以如果有人：
+#   * 在网页上把某个必需检查删掉 → 该门禁就不再拦任何东西
+#   * 改了 job 名而没同步规则集 → 该分支永远停在 Pending
+#   * 把 strict 关掉 → 过期分支也能合
+# **没有任何东西会发现**。所有负例矩阵照样通过，因为它们测的是脚本，
+# 不是让脚本真正生效的那层强制。
+#
+# 一个不在规则集 required_status_checks 里的检查，
+# 无论它在 PR 页面上怎么显示，**都不拦任何东西**。所以这份清单本身要被验证。
+#
+# 权限：**公开仓库的规则集可匿名读取**（实测 HTTP 200），
+# 所以本 job 不需要额外权限、不需要 PAT，用默认 GITHUB_TOKEN 就够。
+# 它是**只读**的 —— 不会、也不能修改规则集。
+
+on:
+  schedule:
+    # 每天 03:17 UTC。刻意避开整点以减少 runner 排队。
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/preci/gates.yml'
+      - 'tools/preci/check_ruleset_drift.py'
+      - '.github/workflows/ruleset-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ruleset-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    # ⚠️ 这个 job **不能**作为必需检查：
+    #    它由 schedule 与 paths 过滤的 push 触发，在 PR 上根本不出现。
+    #    设成必需会让每个 PR 永远停在 "Expected — Waiting for status to be reported"。
+    #    （tools/preci/gates.yml 的 never_require 记着同类教训。）
+    name: 规则集漂移检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 装 PyYAML（读 gates.yml）
+        run: python -m pip install --quiet pyyaml
+
+      - name: 核对规则集与 gates.yml 是否一致
+        run: python tools/preci/check_ruleset_drift.py
+
+      # 漂移是要人处理的配置问题，所以额外开一个 Issue。
+      # 只在真的发现漂移时才开，避免噪音；已有同名 Issue 时不重复开。
+      - name: 发现漂移时开 Issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          TITLE="规则集与 gates.yml 不一致（门禁可能已失效）"
+          EXIST=$(gh issue list --state open --search "$TITLE in:title" \
+                    --json number --jq 'length' 2>/dev/null || echo 0)
+          if [[ "${EXIST:-0}" != "0" ]]; then
+            echo "::notice::已有同类 Issue，不重复创建。"
+            exit 0
+          fi
+          BODY=$(printf '%s\n' \
+            "**自动检查发现 GitHub 上的规则集与 \`tools/preci/gates.yml\` 不一致。**" \
+            "" \
+            "这意味着某些门禁**可能已经不再拦任何东西** —— 而所有负例矩阵仍会通过，" \
+            "因为它们测的是脚本，不是让脚本生效的那层强制。" \
+            "" \
+            "**详情见本次运行日志：** $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            "" \
+            "**常见原因：**" \
+            "- 在网页上改过规则集（删了必需检查 / 关了 strict / 改了合并方式）" \
+            "- 改了 workflow 的 job \`name\` 而没同步规则集" \
+            "- 有意变更规则集，但忘了同时改 \`gates.yml\`" \
+            "" \
+            "**处理原则：两边必须一致。** 要么把远端改回，要么先改 \`gates.yml\` 再改远端，" \
+            "不要只改一边。")
+          gh issue create --title "$TITLE" --body "$BODY" --label "ci"
