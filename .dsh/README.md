@@ -37,7 +37,7 @@
 ### 权威性层级（冲突时按此裁决）
 
 ```text
-1. bloodbrone.markdown               ← 任务书 v3.0，唯一需求来源（最高）
+1. bloodborne.markdown               ← 任务书 v3.0，唯一需求来源（最高）
 2. bbcoop-conventions                ← 协作规约（所有权 / Issue 驱动 / 证据等级 / 安全红线）
    bbcoop-re-protocol                ← 逆向记录协议
    bbcoop-github-ops                 ← 仓库运维与门禁
@@ -56,7 +56,7 @@
 | [`bbcoop-re-protocol`](skills/bbcoop-re-protocol/SKILL.md) | 逆向记录协议：函数/地址/Hook 记录格式、版本绑定、交付清单 | 分析 bbport runtime、定位函数、写 `docs/re/` |
 | [`bbcoop-github-ops`](skills/bbcoop-github-ops/SKILL.md) | 仓库自动化运维：标签、Issue 表单、PR 门禁、规则集、gh/API 命令 | 配置仓库、建 Issue/PR、排查 CI、执行推送 |
 
-> 这三个 skill 是任务书 v3.0 的**可执行摘要**。与 `bloodbrone.markdown` 冲突时**以任务书为准**。
+> 这三个 skill 是任务书 v3.0 的**可执行摘要**。与 `bloodborne.markdown` 冲突时**以任务书为准**。
 
 ### 引入的通用工程流程 skill（第三方，MIT，**非权威**）
 

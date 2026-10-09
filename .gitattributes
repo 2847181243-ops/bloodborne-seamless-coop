@@ -46,6 +46,6 @@ CMakeLists.txt text
 *.pak       binary
 
 # ── Git diff / 语言统计 ──────────────────────────────────────
-bloodbrone.markdown linguist-documentation
+bloodborne.markdown linguist-documentation
 docs/**             linguist-documentation
 .github/**          linguist-detectable=false

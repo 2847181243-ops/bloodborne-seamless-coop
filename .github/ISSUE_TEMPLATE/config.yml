@@ -4,7 +4,7 @@ contact_links:
     url: https://github.com/2847181243-ops/bloodborne-seamless-coop/security/advisories/new
     about: MITM / Sybil / DDoS / 协议缺陷 / 供应链问题，请走 Security Advisory 私有渠道。
   - name: 任务书 v3.0（唯一需求来源）
-    url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/bloodbrone.markdown
+    url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/bloodborne.markdown
     about: 任何需求疑问先查任务书；与 README 冲突时以任务书为准。
   - name: 贡献指南（分支模型 / 所有权 / 证据等级）
     url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/CONTRIBUTING.md

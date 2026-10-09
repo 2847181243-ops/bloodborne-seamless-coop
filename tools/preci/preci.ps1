@@ -545,7 +545,7 @@ echo "SEC_OK"
 
     Write-Head (M 'check_style')
     # Enforces .editorconfig (which existed but nothing checked) and the task
-    # book's comment rule: bloodbrone.markdown:1160 forbids mass-commenting code
+    # book's comment rule: bloodborne.markdown:1160 forbids mass-commenting code
     # to silence errors. Scans the COMMITTED BLOBs, not the working tree -- see
     # check_style.py's docstring for the two false-positive traps that caused.
     $pyStyle = $null

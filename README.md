@@ -14,9 +14,9 @@
 
 | 文档 | 说明 |
 |---|---|
-| [bloodbrone.markdown](bloodbrone.markdown) | **任务书 v3.0（唯一需求来源 / Single Source of Truth）** |
+| [bloodborne.markdown](bloodborne.markdown) | **任务书 v3.0（唯一需求来源 / Single Source of Truth）** |
 
-> 文件名为原始交付名（`bloodbrone`），内容逐字保留、未做任何修改。
+> 文件名为原始交付名（`bloodborne`），内容逐字保留、未做任何修改。
 > 任何与本 README 冲突之处，**以任务书为准**。
 
 ---
@@ -81,7 +81,7 @@
 
 ```text
 .
-├── bloodbrone.markdown            # 任务书 v3.0（权威需求）
+├── bloodborne.markdown            # 任务书 v3.0（权威需求）
 ├── README.md / CONTRIBUTING.md / SECURITY.md
 ├── .github/
 │   ├── CODEOWNERS

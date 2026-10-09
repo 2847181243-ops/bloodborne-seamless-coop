@@ -150,7 +150,7 @@ powershell -NoProfile -File tools/preci/preci.ps1 -Strict
 | 依据 | 内容 |
 |---|---|
 | `.editorconfig`（早已存在） | 末尾换行、换行符、行尾空白、缩进、行宽 120。**此前没有任何门禁执行它** |
-| 任务书 §38（`bloodbrone.markdown:1160`） | 原文「禁止…为了消除报错而**大面积注释代码**」 |
+| 任务书 §38（`bloodborne.markdown:1160`） | 原文「禁止…为了消除报错而**大面积注释代码**」 |
 
 三项检查：
 
