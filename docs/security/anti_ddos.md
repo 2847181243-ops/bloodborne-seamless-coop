@@ -3,7 +3,7 @@
 **所有者：AI-C2（Security Architect）｜产出：Phase 0｜实现方：AI-B1（传输）、AI-B2（发现）、AI-B4（中继）**
 **证据等级：`Confirmed`（机制项逐条回溯任务书；具体阈值均为待确认）**
 
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）。冲突时以任务书为准。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）。冲突时以任务书为准。
 > 约束编号见 [constraints.md](constraints.md)（本文件实现 `C-005`）。
 
 ---
@@ -21,7 +21,7 @@
 
 ---
 
-## 2. 任务书给定机制（§45.2 `bloodbrone.markdown:1768`）
+## 2. 任务书给定机制（§45.2 `bloodborne.markdown:1869`）
 
 ```text
 抗 DDoS（速率限制 + 中继隐藏）
@@ -72,7 +72,7 @@
 
 ## 5. 与性能预算的关系（§36）
 
-§36（`bloodbrone.markdown:1101-1119`）给出性能与网络指标：
+§36（`bloodborne.markdown:1202-1220`）给出性能与网络指标：
 `Ping / RTT / Packet Loss / Tick Rate / Replication Frequency / State Correction / CPU / Memory / Hook Overhead`。
 
 - **速率限制不得以牺牲玩法为代价**：限流阈值必须与上述指标共同评估。
@@ -88,7 +88,7 @@
 
 | 出处 | 情况 |
 |---|---|
-| §53 `bloodbrone.markdown:2201` | AI-C4 验收含硬性 checkbox「DDoS 防御验证」 |
+| §53 `bloodborne.markdown:2435` | AI-C4 验收含硬性 checkbox「DDoS 防御验证」 |
 | §36 `:1108-1114` | 性能与网络指标中**没有任何** DDoS 量化基线 |
 
 **冲突**：**「必须验收」但无判据** → 无法客观判定通过与否。

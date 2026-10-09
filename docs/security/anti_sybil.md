@@ -3,7 +3,7 @@
 **所有者：AI-C2（Security Architect）｜产出：Phase 0｜实现方：AI-B3（信誉层）、AI-B4（中继上限）**
 **证据等级：`Confirmed`（机制项逐条回溯任务书；`Probable` 项已单独标注）**
 
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）。冲突时以任务书为准。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）。冲突时以任务书为准。
 > 约束编号见 [constraints.md](constraints.md)（本文件实现 `C-006`）。
 
 ---
@@ -22,7 +22,7 @@
 
 ---
 
-## 2. 任务书给定的机制（§45.5 `bloodbrone.markdown:1806-1814`）
+## 2. 任务书给定的机制（§45.5 `bloodborne.markdown:1907-1915`）
 
 ```text
 AntiSybil
@@ -76,7 +76,7 @@ AntiSybil
 
 | 出处 | 情况 |
 |---|---|
-| §53 `bloodbrone.markdown:2200` | AI-C4 验收含硬性 checkbox「Sybil 攻击防御验证」 |
+| §53 `bloodborne.markdown:2434` | AI-C4 验收含硬性 checkbox「Sybil 攻击防御验证」 |
 | §36 `:1101-1119` | 性能与网络指标中**没有**任何 Sybil 量化基线（只有 Ping/RTT/丢包/重传/包频率/反作弊/日志/内存） |
 | §45.5 `:1809`、`:1811` | 两个关键机制（PoW、社交验证）均标「（可选）」 |
 

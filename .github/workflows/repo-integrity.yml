@@ -14,9 +14,9 @@ name: repo-integrity
 
 on:
   push:
-    branches: [main, 'agent/**', 'lead/**']
+    branches: [main, develop, 'agent/**', 'lead/**', 'task/**']
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:

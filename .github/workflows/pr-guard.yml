@@ -6,7 +6,7 @@ name: pr-guard
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read

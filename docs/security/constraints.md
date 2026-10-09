@@ -6,7 +6,7 @@
 > 本文件覆盖 [docs/security/README.md](README.md) 交付判定第 2 与第 6 条。
 > **本文件是强制条款，不是建议。** 违反任一条 → AI-C3 审计 `FAIL` → 阻断合并。
 >
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）。
 > 既有编号体系来自 `docs/interfaces/c2_to_b_security_constraints.md`（`C-001…C-008`）；
 > **本文件沿用该体系并扩展**，不另起新体系。
 
@@ -57,7 +57,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：AI-B1（传输层）、AI-B4（中继）、AI-A2（会话与复制）。
 - **验证方式**：AI-C3 代码审计（枚举全部出网路径，确认无明文游戏字段）+ AI-C4 MITM 测试。
 - **违反后果**：FAIL
-- **依据**：§45.2 `bloodbrone.markdown:1746-1750`；`c2_to_b_security_constraints.md` C-001。
+- **依据**：§45.2 `bloodborne.markdown:1847-1851`；`c2_to_b_security_constraints.md` C-001。
 
 ### C-002 中继零信任
 
@@ -67,7 +67,7 @@ C-4xx —— 中继层（AI-B4）
 - **验证方式**：AI-C3 代码审计（确认中继进程不持有会话密钥、无业务日志调用、无持久化写入）
   + AI-C4 中继攻击测试（窃听 / 篡改 / 丢弃 / 重放）。
 - **违反后果**：FAIL
-- **依据**：§45.4 `bloodbrone.markdown:1786-1802`；`c2_to_b_security_constraints.md` C-002。
+- **依据**：§45.4 `bloodborne.markdown:1887-1903`；`c2_to_b_security_constraints.md` C-002。
 
 ### C-003 无持久标识
 
@@ -77,7 +77,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：AI-B1 / B2 / B3 / B4。
 - **验证方式**：AI-C3 隐私审计（落盘内容与出网内容双重检查：搜索持久 ID 生成点与落盘点）。
 - **违反后果**：FAIL
-- **依据**：§45.2 `bloodbrone.markdown:1765`；SECURITY.md §2；`C-003`。
+- **依据**：§45.2 `bloodborne.markdown:1866`；SECURITY.md §2；`C-003`。
 
 ### C-004 无隐私数据出网
 
@@ -87,7 +87,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：**全部网络组件**（AI-B1/B2/B3/B4、AI-A2）。
 - **验证方式**：AI-C3 抓包审计 + 代码审计（出网字段白名单比对）；AI-C4 中继窃听测试。
 - **违反后果**：FAIL
-- **依据**：§45.2 `bloodbrone.markdown:1764`；SECURITY.md §2；`C-004`。
+- **依据**：§45.2 `bloodborne.markdown:1865`；SECURITY.md §2；`C-004`。
 
 ### C-005 速率限制与包大小上限
 
@@ -96,7 +96,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：AI-B1 / B2 / B4。
 - **验证方式**：AI-C3 代码审计（确认每条接收路径都有上限）+ AI-C4 DDoS 测试（信令层 / 中继层洪泛）。
 - **违反后果**：FAIL
-- **依据**：§45.2 `bloodbrone.markdown:1768`；`c2_to_b_security_constraints.md` C-005。
+- **依据**：§45.2 `bloodborne.markdown:1869`；`c2_to_b_security_constraints.md` C-005。
 - **待确认**：**具体阈值未在任务书给出**（见 §3 待确认-2）→ 阈值属实现方需先提 Issue 确认的参数。
 
 ### C-006 抗 Sybil
@@ -106,7 +106,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：AI-B3（信誉层）、AI-B4（中继上限）。
 - **验证方式**：AI-C3 代码审计（三项机制均存在）+ AI-C4 Sybil 测试。
 - **违反后果**：FAIL
-- **依据**：§45.5 `bloodbrone.markdown:1806-1814`；`c2_to_b_security_constraints.md` C-006。
+- **依据**：§45.5 `bloodborne.markdown:1907-1915`；`c2_to_b_security_constraints.md` C-006。
 - **待确认**：中继数量上限与筛选门槛未给出（`c2_to_b_security_constraints.md:115`）；
   验收基线缺失（见 §3 待裁决-2）。
 
@@ -117,7 +117,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：**全部组件**。
 - **验证方式**：AI-C3 代码审计（逐条失败路径确认有 `[SECURITY]` 记录且返回拒绝，**无静默通过**）。
 - **违反后果**：FAIL
-- **依据**：`c2_to_b_security_constraints.md` C-007；§34 `bloodbrone.markdown:1050`（`[SECURITY]` 前缀）；
+- **依据**：`c2_to_b_security_constraints.md` C-007；§34 `bloodborne.markdown:1151`（`[SECURITY]` 前缀）；
   §5.5 `:220`「Hook 失败必须明确记录日志」「不允许静默失败」。
 
 ### C-008 版本强校验
@@ -128,7 +128,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：AI-A0（平台适配）、AI-A2、**全部网络组件**。
 - **验证方式**：AI-C3 代码审计 + §35.13 测试矩阵（版本不匹配场景）。
 - **违反后果**：FAIL
-- **依据**：§5.5 `bloodbrone.markdown:209-224`（含 `:219`「Mod 版本必须强校验，版本不一致拒绝连接」）；
+- **依据**：§5.5 `bloodborne.markdown:310-325`（含 `:219`「Mod 版本必须强校验，版本不一致拒绝连接」）；
   `c2_to_b_security_constraints.md` C-008。
 
 ### C-009 消息完整性（HMAC + 单调序列号）
@@ -138,7 +138,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：AI-B1（传输层）、AI-C1（密码学实现）。
 - **验证方式**：AI-C3 代码审计（确认无"可跳过校验"的路径）+ AI-C4 篡改测试。
 - **违反后果**：FAIL
-- **依据**：§45.2 `bloodbrone.markdown:1755-1757`；`docs/security/README.md:32-38` 示例。
+- **依据**：§45.2 `bloodborne.markdown:1856-1858`；`docs/security/README.md:32-38` 示例。
 
 ### C-010 防重放（序列号 + 时间戳窗口）
 
@@ -161,7 +161,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：AI-B4。
 - **验证方式**：AI-C3 代码审计（中继侧字段逐一比对白名单）+ AI-C4 中继窃听测试。
 - **违反后果**：FAIL
-- **依据**：§45.4 `bloodbrone.markdown:1790-1801`。
+- **依据**：§45.4 `bloodborne.markdown:1891-1902`。
 
 ### C-012 反作弊仅限 PvP / Invasion
 
@@ -175,7 +175,7 @@ C-4xx —— 中继层（AI-B4）
 - **验证方式**：AI-C3 代码审计（**证明 PvE 路径不存在任何检测调用**，而非仅"默认关闭"）
   + AI-C4 客户端攻击测试。
 - **违反后果**：FAIL
-- **依据**：§46.0 `bloodbrone.markdown:1831-1857`；§35.13 `:1091-1093`；SECURITY.md §5。
+- **依据**：§46.0 `bloodborne.markdown:1932-1958`；§35.13 `:1091-1093`；SECURITY.md §5。
 - **补充**：始终启用的**联机基础完整性**与 PvP 专属**行为反作弊**是两套逻辑，审计须分别验证
   （见 §2「始终启用 / 仅 PvP」对照表）。
 
@@ -190,7 +190,7 @@ C-4xx —— 中继层（AI-B4）
 - **验证方式**：AI-C3 代码审计（逐条确认 9 项存在）+ AI-C4 客户端攻击测试
   （Host 作弊场景下客机数据与存档是否完好）。
 - **违反后果**：FAIL
-- **依据**：§46.1 `bloodbrone.markdown:1864-1875`。
+- **依据**：§46.1 `bloodborne.markdown:1965-1976`。
 
 ### C-014【条件条款】公钥指纹验证（防 MITM）
 
@@ -224,7 +224,7 @@ C-4xx —— 中继层（AI-B4）
 - **适用范围**：**全部模块**。
 - **验证方式**：AI-C3 隐私审计（对全部日志调用点做字段检查；搜索隐私字段进入格式串的路径）。
 - **违反后果**：FAIL
-- **依据**：§34 `bloodbrone.markdown:1051`「不得记录任何隐私数据」；
+- **依据**：§34 `bloodborne.markdown:1152`「不得记录任何隐私数据」；
   `docs/README.md:54`「文档中不得出现任何玩家隐私数据…日志样例必须脱敏」；
   `.github/ISSUE_TEMPLATE/security-audit.yml:60`（校验失败路径须记 `[SECURITY]` 日志，
   但该日志同样**不得**含隐私字段）。
@@ -275,7 +275,7 @@ C-4xx —— 中继层（AI-B4）
 
 ## 2. 「始终启用」与「仅 PvP」对照（审计必查）
 
-来自 §46.0 `bloodbrone.markdown:1831-1857`。**两套逻辑不可混淆**：
+来自 §46.0 `bloodborne.markdown:1932-1958`。**两套逻辑不可混淆**：
 
 | 机制 | 始终启用 | 仅 PvP / Invasion |
 |---|---|---|

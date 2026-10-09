@@ -6,7 +6,7 @@
 > 本文件覆盖 [docs/security/README.md](README.md) 交付判定第 3 条：
 > **隐私保护方案完成，且与 `SECURITY.md` 一致**。
 >
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）；隐私细则以 `SECURITY.md` 为准。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）；隐私细则以 `SECURITY.md` 为准。
 > 约束编号见 [constraints.md](constraints.md)（本文件实现 `C-003`、`C-004`、`C-016`、`C-017`）。
 
 ---
@@ -29,7 +29,7 @@ IP 地址 / 平台账号 ID / 硬件指纹 / Mod 自发生成持久 ID
 扫描进程 / 读内存 / 监控系统 / 上传行为数据 / 中心化封禁
 ```
 
-**依据**：SECURITY.md §2；§45.2 `bloodbrone.markdown:1763-1765`；
+**依据**：SECURITY.md §2；§45.2 `bloodborne.markdown:1864-1866`；
 §2.4 非目标 `:44-59`；`c2_to_b_security_constraints.md` `C-003`/`C-004`。
 
 ### 1.3 为什么"无持久 ID"是隐私方案的核心
@@ -114,7 +114,7 @@ IP 地址 / 平台账号 ID / 硬件指纹 / Mod 自发生成持久 ID
 
 ## 4. 反作弊与隐私的边界（最容易被误做的地方）
 
-**两套逻辑必须分别验证，不可混淆**（§46.0 `bloodbrone.markdown:1831-1857`）：
+**两套逻辑必须分别验证，不可混淆**（§46.0 `bloodborne.markdown:1932-1958`）：
 
 | 类别 | 适用范围 | 与隐私的关系 |
 |---|---|---|

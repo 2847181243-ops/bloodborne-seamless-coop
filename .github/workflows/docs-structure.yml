@@ -7,10 +7,13 @@ on:
   push:
     branches:
       - main
+      - develop
       - 'agent/**'
       - 'lead/**'
+      - 'task/**'
+      - 'lead/**'
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
