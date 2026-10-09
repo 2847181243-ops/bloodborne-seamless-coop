@@ -119,6 +119,107 @@ bbport 是 Supermedo 对 deadinside28 的 Linux 原生移植版的 Windows fork�
 - 反作弊开销（仅 PvP）：< 1ms/frame
 - 内存开销：< 100MB
 
+### 3.6 模块化架构与故障隔离原则（v2.0 新增）
+
+> 本节由 AI 项目维护者任务书 v2.0 增补。原文不改写。
+
+**目标**：把仓库重构为 Kernel + 模块宿主结构，任一非核心模块崩溃时进程存活、
+其他模块继续工作。最终交付 `v0.1.0-modular`。
+
+**六条核心原则**
+
+1. **Kernel + Module Host**：Kernel 只负责加载、配置、日志、事件总线、健康巡检、
+   熔断，**不含任何业务逻辑**。
+2. **模块即故障边界**：每个模块独立 ID、独立 target、独立测试、独立健康状态、
+   独立降级路径。
+3. **接口通信**：模块间只能通过 `src/interfaces/` 中冻结的 v1 接口通信。
+4. **默认关闭**：L2 游戏系统模块默认 `enabled: false`，按功能开关启用。
+5. **故障不传播**：任一非核心模块崩溃，进程存活，其他模块继续工作。
+6. **安全硬依赖**：`crypto` 失败拒绝联机，**不降级明文**；反作弊失败仅禁用 PvP。
+
+**硬性禁止**
+
+- 不降级加密为明文。
+- 不提交密钥、Token、凭据。
+- 不跨模块 `#include` 或互相 `target_link_libraries`。
+- 不引入未审计的二进制。
+- 不在 Layer Gate 未通过时合并上层模块。
+
+**模块注册表（15 个 + Kernel + 2 个贯穿性辅助）**
+
+Kernel 不计入这 15 个。
+
+| 层 | 模块 ID | 名称 | 职责 |
+|---|---|---|---|
+| Kernel | — | 加载/健康/熔断 | 失败则不加载 Mod，原版启动 |
+| Layer 0 | `mod.transport` | 传输 | UDP/TCP/Relay 传输、连接生命周期 |
+| Layer 0 | `mod.discovery` | 发现 | 房间码、Peer 发现 |
+| Layer 0 | `mod.relay` | 中继 | NAT 回退中继 |
+| Layer 0 | `mod.crypto` | 加密 | 握手、加密、认证 |
+| Layer 0 | `mod.session_core` | 会话核心 | Session 成员、心跳、状态机 |
+| Layer 1 | `mod.game_hook` | 游戏 Hook | 注入、Hook、网络重定向 |
+| Layer 1 | `mod.replication_core` | 复制核心 | 实体复制基础 |
+| Layer 1 | `mod.join_leave` | 加入/离开 | 客机加入/离开流程 |
+| Layer 1 | `mod.area_sync` | 区域同步 | 区域切换同步 |
+| Layer 2 | `mod.death` | 死亡 | 死亡/重生同步 |
+| Layer 2 | `mod.world_reset` | 世界重置 | Lantern / Party Wipe 同步 |
+| Layer 2 | `mod.enemy_boss` | 敌人/Boss | 敌人/Boss 状态同步 |
+| Layer 2 | `mod.loot` | 掉落 | 掉落/库存独立同步 |
+| Layer 2 | `mod.pvp` | PvP | PvP 结算、反作弊 |
+| Layer 2 | `mod.save` | 存档 | `.bloodco` 存档 |
+| 贯穿性 | `mod.observability` | 日志 / 指标 | 按需接入 Kernel 或各层 |
+| 贯穿性 | `mod.security_audit` | 审计 | 按需接入 Kernel 或各层 |
+
+合计 **5 + 4 + 6 = 15** 个骨架模块。
+
+**本节是唯一来源**：`config/modules.yaml`、`docs/modules/*.md` 与
+`branch-policy` 的 SCOPE 均以此表为准。
+
+### 3.7 分层模型与出口条件（v2.0 新增）
+
+| 层 | 内容 | 独立可用性 |
+|---|---|---|
+| Kernel | 加载 / 健康 / 熔断 | 失败则不加载 Mod，原版启动 |
+| Layer 0 | P2P 传输、发现、中继、加密、Session 核心 | 独立 CLI 可连接、收发、重连 |
+| Layer 1 | 游戏 Hook、复制核心、加入离开、区域同步 | 双人游戏内可见、可移动、可切换区域 |
+| Layer 2 | 死亡、世界重置、敌人、掉落、PvP、存档 | 任一模块可禁用，不影响其他模块 |
+
+**层出口条件**
+
+| Layer | 出口条件 |
+|---|---|
+| Layer 0 | `bloodcoop-net` CLI 可完成房间码连接、双向收发、断线重连，30 分钟稳定 |
+| Layer 1 | 双人游戏内互相可见、可移动、可切换区域，客机加入不触发原版召唤 |
+| Layer 2 | 完整 Session 可完成一个区域；任一 L2 模块禁用不影响其他模块与 P2P |
+
+**串行约束**
+
+- Layer 0 出口未通过前，不得合并 Layer 1 模块。
+- Layer 1 出口未通过前，不得合并 Layer 2 模块。
+
+**模块 Gate（每个模块必须通过）**
+
+1. 单元测试
+2. 契约测试
+3. 独立运行测试
+4. 故障注入测试
+5. 禁用后核心系统仍可用测试
+
+**全局 Gate（发布前 9 项）**
+
+1. 全量构建成功
+2. 全量单元测试通过
+3. 全量契约测试通过
+4. 故障注入全部通过
+5. 模块隔离全部通过
+6. `--self-test` 输出 `overall: pass`
+7. 禁用全部 L2 模块后游戏单机 30 分钟无崩溃
+8. `crypto` 失败 → 拒绝联机，不降级明文
+9. 任一非核心模块崩溃 → 进程存活，其他模块继续工作
+
+⚠️ 层出口条件目前是自然语言（如"30 分钟稳定"）。
+实施时**必须转成可判定项**（脚本 + 退出码），否则只能靠人说"我觉得可以了"。
+
 
 ## 4. AI 工作角色
 
@@ -2022,6 +2123,84 @@ agent/c4-penetration-test
 - AI-C1 的密码学代码不允许被其他 AI 修改
 - AI-C3 的审计代码不允许被开发 AI 修改
 
+### 48-c 模块所有权（v2.0 新增，替代上表的 Agent 划分）
+
+> 上表的 `agent/a0…c4` 划分是 v1.0 的方案，**由本节的模块所有权替代**。
+> 上表保留作为历史对照；实施以本节为准。
+
+**一个模块 = 一个所有权单元**（对应 §3.6 的模块注册表）：
+
+| 层 | 模块 | 路径 |
+|---|---|---|
+| Kernel | — | `src/kernel/` |
+| 接口 | — | `src/interfaces/` |
+| Layer 0 | `mod.transport` | `src/modules/transport/` |
+| Layer 0 | `mod.discovery` | `src/modules/discovery/` |
+| Layer 0 | `mod.relay` | `src/modules/relay/` |
+| Layer 0 | `mod.crypto` | `src/modules/crypto/` |
+| Layer 0 | `mod.session_core` | `src/modules/session_core/` |
+| Layer 1 | `mod.game_hook` | `src/modules/game_hook/` |
+| Layer 1 | `mod.replication_core` | `src/modules/replication_core/` |
+| Layer 1 | `mod.join_leave` | `src/modules/join_leave/` |
+| Layer 1 | `mod.area_sync` | `src/modules/area_sync/` |
+| Layer 2 | `mod.death` | `src/modules/death/` |
+| Layer 2 | `mod.world_reset` | `src/modules/world_reset/` |
+| Layer 2 | `mod.enemy_boss` | `src/modules/enemy_boss/` |
+| Layer 2 | `mod.loot` | `src/modules/loot/` |
+| Layer 2 | `mod.pvp` | `src/modules/pvp/` |
+| Layer 2 | `mod.save` | `src/modules/save/` |
+
+**保留自 v1.0 的两条硬规则**（与上面一致，但换到模块语汇）：
+
+- `mod.crypto` 的代码**不允许**被其他模块的负责人修改。
+- `mod.security_audit` 的代码**不允许**被开发模块的负责人修改。
+
+### 48-d `task/*` 与 `develop` 分支约定（v2.0 新增）
+
+**分支模型**
+
+```text
+main        ← 只接受 Human Owner 批准后的合并；发布 Tag 在此
+  ↑
+develop     ← 集成分支；CI 全绿即可合并
+  ↑
+task/T-xxx-<slug>   ← 每个任务卡一条分支
+fix/*               ← 修复分支
+```
+
+**命名规则**
+
+```text
+task/T-000-governance-init
+task/T-004-interface-layer
+fix/quotepath-ci-gate
+```
+
+**流程**：`Issue [T-xxx] → task/T-xxx-<slug> → PR → CI 全绿 → squash 到 develop`
+
+**提交信息**：`[T-xxx] type(scope): subject`
+
+**权限边界**
+
+| 操作 | AI Maintainer | Human Owner |
+|---|---|---|
+| 创建 Issue / 分支 / PR | ✅ | ✅ |
+| 推送到 `task/*`、`fix/*` | ✅ | ✅ |
+| 合并到 `develop`（CI 全绿） | ✅ | ✅ |
+| 合并到 `main` | ❌ 需批准 | ✅ |
+| 打 Release Tag | ❌ 需批准 | ✅ |
+| 修改 CI / 构建脚本 | ✅（走 PR） | ✅ |
+| 修改 `crypto` / `auth` / 反作弊 | ❌ 需 Security Reviewer + Owner | ✅ |
+| 删除模块 / 破坏性接口变更 | ❌ 需批准 | ✅ |
+| `force push` / 重写历史 | ❌ | ❌ |
+| 跳过 CI / 绕过分支保护 | ❌ | ❌ |
+
+⚠️ **多签审批在本仓库目前无法由平台强制**：这是个人账号仓库、CODEOWNERS 单账号，
+GitHub 不允许自审；`required_approving_review_count ≥ 1` 会让唯一账号无法合并
+自己的 PR。因此上表里"需批准"的条目，当前是**文本层强制**（靠记录与审计），
+**不是平台级保证**，不得对外表述为后者。
+要变成硬约束，需要引入第二名协作者账号。
+
 
 ## 49. 冲突裁决机制
 
@@ -2082,6 +2261,61 @@ docs/
 ## 52. 跨 Agent Issue 规则
 
 必须建立 Issue：AI-A1 无法确认关键函数；AI-A2 需要改变 AI-A1 已确认的核心接口；AI-A3 发现原版机制与假设冲突；大规模修改 Player/World/Boss/Save；修改核心网络协议/死亡经济/Inventory/Reward；PvP Scaling 可能改变核心战斗行为；Crash / State Desync / Save Corruption / Duplicate Reward / Infinite Respawn / Infinite Enemy Reset；消耗品复制；商店购买复制；NPC 保护范围不清；世界状态写入客机存档；反作弊误判；决斗场 Hook 方案未定；区域切换导致状态异常；独立存档损坏；**安全审计未通过**。
+
+### 52-b Layer Gate 未通过不得合并上层（v2.0 新增）
+
+**出口条件未通过时，上层模块的 PR 不得合并。**
+
+| 门 | 未通过时禁止 |
+|---|---|
+| Layer 0 出口（§3.7） | 合并任何 Layer 1 模块 |
+| Layer 1 出口（§3.7） | 合并任何 Layer 2 模块 |
+| 模块 Gate（§3.7 五条） | 合并该模块的任何后续改动 |
+| T-018 全局 Gate（9 项） | 进入 T-020 发布 |
+
+**理由**：模块化架构的价值在于"故障不传播"。如果上层模块在底层出口未验证时
+就合入，底层的故障会立刻传播到上层，而排查时无法判断是底层没做好还是上层写错了
+—— **故障边界的验证顺序被打乱，等于没有边界**。
+
+**这条与"CI 全绿"不重复**：CI 全绿只说明本 PR 自身没问题，
+不说明它所依赖的层已经达标。两者都要满足。
+
+### 52-c 接口冻结后的变更流程（v2.0 新增）
+
+`src/interfaces/` 中的 v1 接口**冻结**。冻结后的任何变更按以下流程：
+
+1. **先建 Issue**，说明：要改哪个接口、为什么现有接口不够、影响哪些模块。
+2. **评估影响面**：列出所有实现方与调用方（跨层尤其要注意）。
+3. **提供过渡方案**：不能直接删改。要么新增 v2 接口并让 v1 保留一个版本周期，
+   要么给出所有调用方的一次性迁移方案。
+4. **由 AI-00 裁决**（接口冲突归 AI-00，见 §49）。
+5. 变更落地后，**同步更新 `docs/interfaces/`**（那里是契约的唯一权威版本）。
+
+**禁止**：为了实现某个模块的方便而直接修改冻结接口，
+让其他模块"顺手跟着改"。那会让接口失去冻结的意义。
+
+### 52-d 故障注入与降级矩阵的更新义务（v2.0 新增）
+
+**每当出现下列任一情况，必须同步更新故障注入套件与降级矩阵：**
+
+- 新增一个模块；
+- 一个模块新增对外的依赖（调用别的模块或依赖新的系统能力）；
+- 一个模块的失败行为发生变化（原来会崩，现在降级；或反之）；
+- 新增一类失败场景（如新的外部依赖、新的超时路径）。
+
+**产出要求**：
+
+| 产出 | 内容 |
+|---|---|
+| 故障注入用例 | 每个用例有**明确断言**，不是"跑一下看看" |
+| 降级矩阵 | 写明：哪个模块失败 → 哪些功能降级 → 用户看到什么 |
+| 断言证据 | 用例的真实输出，写进 `REFACTOR-REPORT.md` |
+
+**"没环境"不是理由**：无法自动化的用例，必须逐个列出**具体技术原因**
+（缺哪类依赖、缺哪个系统能力），而不是一句"无法测试"。
+
+**为什么归入 Issue 规则**：故障边界是这个架构的核心承诺（§3.6 第 5 条）。
+承诺变了却不更新验证手段，等于把承诺变成了无法核实的声明。
 
 
 ## 53. 最终验收
@@ -2255,3 +2489,82 @@ docs/
 
 
 **以上为 v3.0 最终版《Bloodborne Seamless Co-op Mod AI 开发任务书》。**
+
+
+
+---
+
+# 附录 A：Agent 划分 → 模块划分 对照（v2.0 新增）
+
+> §48 的 `agent/a0…c4` 划分由 §3.6 的 15 个模块替代。
+> 本附录给出映射，**供理解历史文档与旧接口契约使用**，不作为实施依据。
+
+| v1.0 Agent | 职责 | v2.0 模块 |
+|---|---|---|
+| AI-A0 | 平台集成、启动器 | `src/platform/`（不在 15 个模块内） |
+| AI-A1 | 逆向、`mod/core/` | `mod.game_hook`（Hook 与地址解析） |
+| AI-A2 | 会话与状态复制 | **拆成两个**：`mod.session_core`（Layer 0）与 `mod.replication_core`（Layer 1） |
+| AI-A3 | 玩家/敌人/Boss/死亡/Lantern/世界 | **拆成五个**：`mod.death`、`mod.world_reset`、`mod.enemy_boss`、`mod.join_leave`、`mod.area_sync` |
+| AI-A4 | 数值与 PvP | `mod.pvp`（含反作弊） |
+| AI-B1 | 传输 | `mod.transport` |
+| AI-B2 | 发现 | `mod.discovery` |
+| AI-B3 | 信誉 | 并入 `mod.session_core` / `mod.discovery`（信誉不再是独立层） |
+| AI-B4 | 中继 | `mod.relay` |
+| AI-C1 | 密码学 | `mod.crypto` |
+| AI-C2 | 安全架构 | `docs/security/`（无独立模块） |
+| AI-C3 | 安全审计 | `mod.security_audit` |
+| AI-C4 | 渗透测试 | `docs/pentest/`（无独立模块） |
+
+**映射中最重要的两处变化**（不是机械替换）：
+
+1. **旧 AI-A2 被拆到两个层**：`session_core` 在 Layer 0（P2P 基础），
+   `replication_core` 在 Layer 1（游戏集成）。
+   这意味着原来"一个 Agent 内部"的接口，现在变成了**跨层接口**，
+   必须按 §52-c 的流程重新冻结方向。
+
+2. **旧 AI-A3 被拆成五个模块**，跨 Layer 1 与 Layer 2。
+   原来共享的内部状态（玩家 / 世界 / Lantern）现在要经过冻结接口传递，
+   **不能再用"同一个 Agent 内部随便访问"的方式**。
+
+`docs/interfaces/` 下 6 份契约的文件名仍用旧编号（如 `a1_to_a2_events.md`）。
+重命名时**必须按上述映射重新确定接口方向**，不是改个名字。
+
+
+# 附录 B：原 Phase 1–15 → T-000…T-020 覆盖关系（v2.0 新增）
+
+> §41「开发顺序」里的 Phase 1–15 执行计划由 v2.0 的任务卡替代。
+> 本附录说明哪些内容被吸收、哪些仍然有效。
+
+| 原 Phase | 内容 | 由谁覆盖 |
+|---|---|---|
+| Phase 0 | 安全设计 | **已完成**（`docs/security/` 9 份） |
+| Phase 1 | 环境与版本确认 + bbport runtime 逆向 | T-004 的前置；`mod.game_hook` 的输入 |
+| Phase 2–3 | Hook 与内存布局 | `mod.game_hook` |
+| Phase 4 | 网络传输 | `mod.transport` / `mod.discovery` / `mod.relay` |
+| Phase 5 | 会话与复制 | `mod.session_core` / `mod.replication_core` |
+| Phase 6–9 | 死亡 / 世界 / 敌人 / 掉落 | `mod.death` / `mod.world_reset` / `mod.enemy_boss` / `mod.loot` |
+| Phase 10–12 | PvP / 决斗场 / 反作弊 | `mod.pvp` |
+| Phase 13–14 | 存档 / 集成测试 | `mod.save` / `mod.join_leave` / `mod.area_sync` |
+| Phase 15 | 发布 | T-015 / T-018 / T-020 |
+
+**v2.0 新增、原 Phase 计划里没有的**：
+
+- Kernel 与模块宿主（T-004 ~ T-006）
+- 模块骨架与配置系统（T-007 ~ T-011）
+- **分层 CI 与故障注入**（T-012 / T-013）—— 这是"故障隔离"从承诺变成可验证的关键
+- `--self-test`（T-014）
+- 模块隔离验证（T-012 的 `module-isolation`）
+
+**原 Phase 计划里有、v2.0 没有覆盖的**（必须保留，不可丢）：
+
+§9–§25 的游戏机制设计 —— 死亡经济、死亡惩罚、Scaling 独立性、世界重置分层、
+物品与掉落、防复制、存档、PvP 结算、决斗场、NPC 行为。
+这些是几百行推导的结果。**v2.0 只规定了模块边界，没有规定模块内部该做什么。**
+
+建议：`docs/modules/<module>.md`（T-010 产出）**必须包含「本模块的原版行为约束」**，
+内容取自本任务书对应章节并标注行号，否则那 15 份模块任务书会写成空壳。
+
+---
+
+**增补说明：原文 §1–§54 未作改写。新增 §3.6 / §3.7 / §48-c / §48-d /
+§52-b / §52-c / §52-d 与附录 A/B，均标注「v2.0 新增」。**
