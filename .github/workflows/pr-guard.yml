@@ -151,7 +151,9 @@ jobs:
           set -uo pipefail
 
           git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1 || true
-          mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD" || true)
+          # -c core.quotepath=false：见 branch-policy.yml 的同类说明。
+          # 少了它，中文名文件会被转义，触及路径的判定随之失效。
+          mapfile -t files < <(git -c core.quotepath=false diff --name-only "origin/$BASE_REF...HEAD" || true)
 
           section_content() {   # 与上一步同构：取某章节的非注释正文
             local key="$1" i start end
@@ -328,7 +330,8 @@ jobs:
           set -uo pipefail
 
           git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1 || true
-          mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD")
+          # -c core.quotepath=false：同上。
+          mapfile -t files < <(git -c core.quotepath=false diff --name-only "origin/$BASE_REF...HEAD")
 
           # ── 触发面（大小写不敏感）──────────────────────────────────────
           # 与 docs/audit/README.md「强制审计触发条件」保持一致：

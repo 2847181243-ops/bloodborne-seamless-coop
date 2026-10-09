@@ -95,7 +95,11 @@ jobs:
 
           git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1 || true
 
-          mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD")
+          # ⚠️ -c core.quotepath=false 是必需的。git 默认把非 ASCII 路径渲染成
+          # 带引号的八进制转义（如 "docs/\346\226\207..."），写入范围的前缀匹配
+          # 随即失效，于是**本就在范围内**的文件被误报为越界。
+          # 实测于一个中文名文档的 PR。
+          mapfile -t files < <(git -c core.quotepath=false diff --name-only "origin/$BASE_REF...HEAD")
 
           if (( ${#files[@]} == 0 )); then
             echo "::notice::未检测到与 $BASE_REF 的文件差异。"
