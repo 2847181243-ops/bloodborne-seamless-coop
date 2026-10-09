@@ -59,7 +59,7 @@
 | `bbcoop-github-ops` | GitHub 侧操作：规则集、门禁、API 调用、CI 红灯速查 |
 | `bbcoop-re-protocol` | 逆向工作规程：记录格式、版本安全链、交付物清单 |
 
-这三个是**本项目的权威说明**。与它们冲突时以任务书 `bloodbrone.markdown` 为准。
+这三个是**本项目的权威说明**。与它们冲突时以任务书 `bloodborne.markdown` 为准。
 
 ### 2.2 其余 —— 第三方通用工程流程 skill
 

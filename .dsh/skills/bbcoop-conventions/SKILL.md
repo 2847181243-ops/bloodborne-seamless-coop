@@ -5,7 +5,7 @@ description: Bloodborne Seamless Co-op Mod 仓库的强制协作规约骨架—�
 
 # Bloodborne Seamless Co-op Mod —— 协作规约（骨架）
 
-权威需求来源是仓库根目录的 `bloodbrone.markdown`（任务书 v3.0，54 节）。
+权威需求来源是仓库根目录的 `bloodborne.markdown`（任务书 v3.0，54 节）。
 本 skill 是它的工程化摘要。**任何冲突以任务书为准。**
 
 > **本文件是骨架，不是全部。** 详细判据按需加载：

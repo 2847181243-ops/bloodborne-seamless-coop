@@ -6,7 +6,7 @@ Two sources of authority, no invented standards:
   1. `.editorconfig` -- already in the repo, and until now nothing enforced it.
      Rules enforced: final newline, line endings, trailing whitespace, tabs,
      max line length (per-section).
-  2. Task book §38 (`bloodbrone.markdown:1160`), verbatim:
+  2. Task book §38 (`bloodborne.markdown:1160`), verbatim:
      "禁止：为了编译通过而删除功能；为了消除报错而大面积注释代码；..."
      -> a rule against mass-commenting code to silence errors.
 

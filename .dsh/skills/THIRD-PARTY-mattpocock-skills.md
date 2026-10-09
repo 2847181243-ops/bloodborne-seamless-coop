@@ -35,7 +35,7 @@
 
 ```text
 权威性层级（冲突时按此裁决）
-1. bloodbrone.markdown               ← 任务书 v3.0，唯一需求来源（最高）
+1. bloodborne.markdown               ← 任务书 v3.0，唯一需求来源（最高）
 2. bbcoop-conventions / bbcoop-re-protocol / bbcoop-github-ops   ← 项目规约
 3. 本目录下引入的第三方工程流程 skill  ← 仅作方法论参考，非权威
 ```
@@ -73,7 +73,7 @@ DSH 的 skill 发现**深度只有一层**（`<root>/<name>/SKILL.md`），而�
 
 ```text
 > **权威性：非权威（第三方，上游未修改内容的通用工程流程 skill）。**
-> 本仓库的权威来源是 .dsh/skills/bbcoop-*（项目规约）与任务书 bloodbrone.markdown。
+> 本仓库的权威来源是 .dsh/skills/bbcoop-*（项目规约）与任务书 bloodborne.markdown。
 > **冲突时以 bbcoop-* 与任务书为准**；本 skill 不得覆盖、放宽或替代其中任何强制条款
 > （例如提交信息格式、合并方式、状态检查名、docs/audit/ 双人签核、隐私红线）。
 > 来源与许可见 .dsh/skills/THIRD-PARTY-mattpocock-skills.md。
@@ -103,7 +103,7 @@ DSH 识别该 frontmatter 键（已在 DSH 运行时资源中确认存在该字�
 ## 与仓库自有 skill 的关系
 
 - 这 20 个是**通用工程流程** skill，与 `bbcoop-*`（项目规约）**互补**。
-- **冲突时以 `bbcoop-*` 与任务书 `bloodbrone.markdown` 为准**（任务书是唯一需求来源）。
+- **冲突时以 `bbcoop-*` 与任务书 `bloodborne.markdown` 为准**（任务书是唯一需求来源）。
 - 本仓库有若干**专有约束**是上游 skill 不可能知道的，例如：
   硬编码的中文状态检查上下文名、`docs/audit/` 双人签核格式、`<scope>: <subject>`
   提交规范（**不是** `type(scope):`）、squash-only、`.dsh/skills` 一层扫描限制。

@@ -39,7 +39,7 @@ jobs:
             "README.md"
             "CONTRIBUTING.md"
             "SECURITY.md"
-            "bloodbrone.markdown"
+            "bloodborne.markdown"
             ".gitignore"
             ".gitattributes"
             ".editorconfig"
