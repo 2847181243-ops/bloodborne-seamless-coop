@@ -5,7 +5,7 @@
 
 > 本文件覆盖 [docs/security/README.md](README.md) 交付判定第 2 条：**安全架构完成，且每条约束可验证**。
 >
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）。与本文件冲突时以任务书为准。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）。与本文件冲突时以任务书为准。
 > 约束编号定义见 [constraints.md](constraints.md)；威胁与资产编号见 [threat_model.md](threat_model.md)。
 
 ---

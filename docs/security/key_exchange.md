@@ -3,7 +3,7 @@
 **所有者：AI-C2（Security Architect）｜产出：Phase 0**
 **证据等级：`Confirmed`（流程步骤逐条回溯任务书原文）**
 
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）。冲突时以任务书为准。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）。冲突时以任务书为准。
 > 配套：算法与接口见 [`docs/interfaces/c1_to_b1_b4_e2ee.md`](../interfaces/c1_to_b1_b4_e2ee.md)；
 > 约束编号见 [constraints.md](constraints.md)（本文件实现 `C-001`、`C-009`、`C-010`、`C-015`）。
 
@@ -11,7 +11,7 @@
 
 ## 1. 任务书给定的七步流程
 
-§45.3（`bloodbrone.markdown:1775-1784`）原文：
+§45.3（`bloodborne.markdown:1876-1885`）原文：
 
 ```text
 KeyExchange
@@ -126,7 +126,7 @@ KeyExchange
 
 | 本文件章节 | 任务书出处 | 证据等级 |
 |---|---|---|
-| §1 七步流程 | §45.3 `bloodbrone.markdown:1775-1784` | `Confirmed` |
+| §1 七步流程 | §45.3 `bloodborne.markdown:1876-1885` | `Confirmed` |
 | Step 1 前向保密 | §45.2 `:1749` | `Confirmed` |
 | Step 4 HKDF | §45.3 `:1780` | `Confirmed` |
 | Step 5 指纹（可选） | §45.2 `:1754`、§45.3 `:1781`；冲突见 §53 `:2199` | `Confirmed` |

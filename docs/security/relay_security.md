@@ -5,7 +5,7 @@
 
 > 本文件覆盖 [docs/security/README.md](README.md) 交付判定第 4 条：**中继安全协议完成，AI-B4 可据此实现**。
 >
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）。冲突时以任务书为准。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）。冲突时以任务书为准。
 > 约束编号见 [constraints.md](constraints.md)（本文件实现 `C-002`、`C-004`、`C-008`、`C-011`）。
 
 ---
@@ -24,7 +24,7 @@
 
 ---
 
-## 2. 四组要求（§45.4 `bloodbrone.markdown:1786-1802`）
+## 2. 四组要求（§45.4 `bloodborne.markdown:1887-1903`）
 
 ### 2.1 能看到（可见性白名单）
 
@@ -156,7 +156,7 @@
 
 | 本文件章节 | 任务书出处 | 证据等级 |
 |---|---|---|
-| §2.1 能看到 | §45.4 `bloodbrone.markdown:1790-1793` | `Confirmed` |
+| §2.1 能看到 | §45.4 `bloodborne.markdown:1891-1894` | `Confirmed` |
 | §2.2 不能看到 | §45.4 `:1794-1795` | `Confirmed` |
 | §2.3 不能做 | §45.4 `:1796-1798` | `Confirmed` |
 | §2.4 必须做 | §45.4 `:1799-1801` | `Confirmed` |

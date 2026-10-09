@@ -8,7 +8,7 @@ name: branch-policy
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -53,6 +53,13 @@ jobs:
             #   它们是「项目级标准」，改一次影响所有 Agent 的模块，
             #   不能由某个 Agent 在自己的分支里单独改。
             [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ docs/standards/ docs/references/ .github/ .dsh/ tools/preci/ tools/bbcoop.py tools/setup-toolchain.ps1 docs/README.md README.md CONTRIBUTING.md SECURITY.md bloodborne.markdown .gitignore .gitattributes .editorconfig CMakeLists.txt .clang-format .clang-tidy"
+            # v2.0 的任务卡范围（迁移期）。
+            # ⚠️ 这是一份**联合范围**，不是最终的模块所有权划分。
+            # v2.0 §48-c 要求「一个模块 = 一个所有权单元」
+            # （src/modules/<module>/ 各归其模块），但模块清单刚落到
+            # 任务书 §3.6，把 15 个模块逐个写进 SCOPE 是 T-000 的工作。
+            # 在那之前先给出 T-003 ~ T-011 需要的目录，避免任务卡被误判越界。
+            [task]="src/ tests/ scripts/ config/ docs/modules/ docs/architecture/ reports/ docs/interfaces/ docs/standards/ docs/references/ .github/ .dsh/ tools/preci/ tools/bbcoop.py tools/setup-toolchain.ps1 CMakeLists.txt .clang-format .clang-tidy .gitignore .gitattributes .editorconfig README.md CONTRIBUTING.md SECURITY.md MIGRATION.md REFACTOR-REPORT.md MAINTAINERS.md AI_POLICY.md bloodborne.markdown"
             [a0]="mod/platform/"
             [a1]="docs/re/ mod/core/"
             [a2]="mod/session/ mod/replication/"
@@ -70,6 +77,13 @@ jobs:
 
           echo "PR 源分支：$HEAD_REF  →  目标分支：$BASE_REF"
 
+          # v2.0 的分支模型（§48-d）：
+          #   main <- develop <- task/T-xxx-<slug>
+          # 与 v1.0 并存，因为迁移是逐步的：
+          #   lead/*   旧：AI-00 的分支，仍在用（含 .github/ 与文档）
+          #   agent/*  旧：按 Agent 划分的模块分支
+          #   task/*   v2.0：按任务卡划分，**分支名里没有 Agent 标识**
+          #   fix/*    v2.0：修复分支
           case "$HEAD_REF" in
             lead/*)
               AGENT="lead"
@@ -78,14 +92,23 @@ jobs:
               rest="${HEAD_REF#agent/}"
               AGENT="${rest%%-*}"
               ;;
+            task/*)
+              # 任务卡分支不携带 Agent 标识 —— 这是 v2.0 的有意设计：
+              # 所有权由**模块**决定（§48-c），而不是由分支名里的代号决定。
+              # 迁移期先用一个联合范围，等 T-000 落定模块 SCOPE 后再收紧。
+              AGENT="task"
+              ;;
+            fix/*)
+              AGENT="task"
+              ;;
             *)
-              echo "::error::PR 源分支必须命名为 agent/<agent>-<topic> 或 lead/<topic>，当前为 '$HEAD_REF'。见任务书 §48 与 CONTRIBUTING.md。"
+              echo "::error::PR 源分支必须命名为 lead/<topic>、agent/<agent>-<topic>、task/T-xxx-<slug> 或 fix/<topic>，当前为 '$HEAD_REF'。见任务书 §48-c / §48-d 与 CONTRIBUTING.md。"
               exit 1
               ;;
           esac
 
           if [[ -z "${SCOPE[$AGENT]:-}" ]]; then
-            echo "::error::未知 Agent 标识 '$AGENT'。合法值为：a0 a1 a2 a3 a4 b1 b2 b3 b4 c1 c2 c3 c4 lead"
+            echo "::error::未知范围标识 '$AGENT'。合法值为：a0 a1 a2 a3 a4 b1 b2 b3 b4 c1 c2 c3 c4 lead task"
             exit 1
           fi
 
