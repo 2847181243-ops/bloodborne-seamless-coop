@@ -292,6 +292,81 @@ def _cmake_call_args(text, command, target):
     return "\n".join(parts) if parts else None
 
 
+def check_constraint_severity(tree, errors, warns):
+    """Require a severity tier on every security constraint.
+
+    Why: all 19 constraints in docs/security/constraints.md carry the identical
+    `违反后果：FAIL`. That loses the distinction that matters -- violating "no
+    persistent identifier" cannot be undone, while "missing packet size limit" is
+    routine rework. With one value, nobody can tell how careful to be.
+
+    Reported as a WARNING, not an error, on purpose:
+      * hard-failing every PR until AI-C2 lands the change would block unrelated
+        work, and people would learn to route around the gate;
+      * a warning stays visible and reports exactly how many entries are missing,
+        so the debt is concrete rather than a sentence in a document.
+
+    Upgrade to an error once docs/security/constraints.md is compliant. That takes a
+    deliberate edit, so the escalation cannot happen by accident.
+    """
+    rel = "docs/security/constraints.md"
+    if rel not in tree:
+        return
+    try:
+        text = tree[rel].decode("utf-8")
+    except UnicodeDecodeError:
+        return
+
+    blocks = re.split(r"^### ", text, flags=re.M)[1:]
+    tiers = ("致命", "严重", "普通")
+    total = 0
+    missing = []
+    no_reason = []
+    for b in blocks:
+        head = b.split("\n", 1)[0].strip()
+        m = re.match(r"(C-\d+)", head)
+        if not m:
+            continue
+        total += 1
+        cid = m.group(1)
+        cons = None
+        for line in b.split("\n"):
+            mm = re.search(r"违反后果\*{0,2}\s*[:：]\s*(.+)$", line)
+            if mm:
+                cons = mm.group(1).strip()
+                break
+        if not cons or not cons.startswith(tiers):
+            missing.append(cid)
+            continue
+        # The level alone is not enough -- it must say WHY in one sentence.
+        rest = cons
+        for t in tiers:
+            if rest.startswith(t):
+                rest = rest[len(t):]
+                break
+        rest = rest.lstrip(" ——-－:：")
+        if len(rest) < 6:
+            no_reason.append(cid)
+
+    if not total:
+        return
+    # The file must also describe the tiers, otherwise a reader cannot interpret them.
+    if "致命" not in text or "严重" not in text:
+        warns.append(("WARN", rel, 0,
+                      "缺少三级（致命/严重/普通）的定义说明 —— 级别无法被解释。"
+                      "要求见 docs/standards/handoff-约束分级.md"))
+    if missing:
+        warns.append(("WARN", rel, 0,
+                      f"{len(missing)}/{total} 条约束的「违反后果」未按三级标注："
+                      f"{', '.join(missing[:8])}{' …' if len(missing) > 8 else ''}。"
+                      f"当前全是同一个 FAIL，无法区分「不可逆」与「可返工」。"
+                      f"判定与理由见 docs/standards/handoff-约束分级.md"))
+    if no_reason:
+        warns.append(("WARN", rel, 0,
+                      f"{len(no_reason)} 条只写了级别没写理由：{', '.join(no_reason[:8])}。"
+                      f"级别是分类，理由才是判据。"))
+
+
 def check_build_standards(tree, errors):
     """Refuse silent removal of the compiler standards.
 
@@ -394,6 +469,7 @@ def main():
         check_comments(name, tree[name], errors, warns, args.mass_comment_limit)
 
     check_build_standards(tree, errors)
+    check_constraint_severity(tree, errors, warns)
 
     if args.json:
         print(json.dumps({

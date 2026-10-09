@@ -65,6 +65,11 @@ HEADER = """# 审计报告：transport 模块
 transport 层。
 """
 
+# The audit subject, defined once instead of repeating the long
+# literal (repetition pushed several lines past the 120-char limit).
+SUBJECT = "PR #1 / commit deadbeef / mod/network/transport/session.cpp"
+
+
 SIGNOFF = """
 ## 3. 双人独立签核（必填，缺一即阻断合并）
 
@@ -82,7 +87,7 @@ def report(overall="PASS", a="PASS", b="PASS", a_who="auditor-one", b_who="audit
            a_role="范围 = E2EE、HMAC、序列号与时间戳防重放、密钥轮换、版本握手强校验",
            b_role="范围 = 隐私红线、中继零信任、速率限制与包大小、抗 Sybil、反作弊范围（仅 PvP）",
            signoff=None, evidence=None,
-           subject="PR #1 / commit deadbeef / mod/network/transport/session.cpp"):
+           subject=SUBJECT):
     if evidence is None:
         evidence = EV_LINE
     if signoff is None:
@@ -98,14 +103,14 @@ R_OK = report()
 R_WARN = report(overall="PASS_WITH_WARNING", a="PASS_WITH_WARNING", b="PASS_WITH_WARNING")
 R_A_FAIL = report(a="FAIL")                       # one signer refuses
 R_B_MISMATCH = report(b="PASS_WITH_WARNING")      # one signer disagrees with label
-R_NO_SIGNOFF = HEADER.format(overall="PASS", subject="PR #1 / commit deadbeef / mod/network/transport/session.cpp") + "\n## 3. 结论\n\n通过。\n"
-R_ONE_SIGNER = HEADER.format(overall="PASS", subject="PR #1 / commit deadbeef / mod/network/transport/session.cpp") + """
+R_NO_SIGNOFF = HEADER.format(overall="PASS", subject=SUBJECT) + "\n## 3. 结论\n\n通过。\n"
+R_ONE_SIGNER = HEADER.format(overall="PASS", subject=SUBJECT) + """
 ## 3. 双人独立签核（必填）
 
 - C3-a（密码学 / 协议 / 完整性）：范围 = x
   结论：PASS
 """
-R_SIGNOFF_NO_VERDICT = HEADER.format(overall="PASS", subject="PR #1 / commit deadbeef / mod/network/transport/session.cpp") + """
+R_SIGNOFF_NO_VERDICT = HEADER.format(overall="PASS", subject=SUBJECT) + """
 ## 3. 双人独立签核（必填）
 
 - C3-a（密码学 / 协议 / 完整性）：范围 = x
@@ -115,7 +120,7 @@ R_SIGNOFF_NO_VERDICT = HEADER.format(overall="PASS", subject="PR #1 / commit dea
   审计者：two
 """
 R_SAME_WHO = report(a_who="same-person", b_who="same-person")
-R_HALF_WIDTH = HEADER.format(overall="PASS", subject="PR #1 / commit deadbeef / mod/network/transport/session.cpp") + "\n## 证据\n\n" + EV_LINE + """
+R_HALF_WIDTH = HEADER.format(overall="PASS", subject=SUBJECT) + "\n## 证据\n\n" + EV_LINE + """
 ## 3. 双人独立签核（必填）
 
 - C3-a（密码学 / 协议 / 完整性）：范围 = x
@@ -123,7 +128,7 @@ R_HALF_WIDTH = HEADER.format(overall="PASS", subject="PR #1 / commit deadbeef / 
 - C3-b（隐私 / 中继 / 抗滥用）：范围 = y
   结论: PASS
 """
-R_DUP_HEADING_ONLY = HEADER.format(overall="PASS", subject="PR #1 / commit deadbeef / mod/network/transport/session.cpp") + """
+R_DUP_HEADING_ONLY = HEADER.format(overall="PASS", subject=SUBJECT) + """
 ## 3. 双人独立签核占位
 ## 4. 双人独立签核占位
 """
@@ -164,10 +169,15 @@ CASES = [
     ("bad report filename",               {**SENSITIVE, "docs/audit/audit_transport.md": R_OK}, "audit:passed", 1),
     # New evidence rule: a report without a verifiable evidence line must fail,
     # and a wrong hash must fail even though everything else looks right.
-    ("report without evidence line",       {**SENSITIVE, REPORT_PATH: R_OK.replace(EV_LINE, "- 证据：（无）")}, "audit:passed", 1),
-    ("report with wrong hash",             {**SENSITIVE, REPORT_PATH: R_OK.replace(EV_HASH, "0" * 64)}, "audit:passed", 1),
-    ("report with evidence outside diff",  {**SENSITIVE, REPORT_PATH: R_OK.replace("mod/network/a.cpp", "README.md")}, "audit:passed", 1),
-    ("relay path + ok report",            {"relay/node.cpp": "x", EV_PATH: _EV_CONTENT.decode("utf-8"), REPORT_PATH: R_OK}, "audit:passed", 0),
+    ("report without evidence line",
+     {**SENSITIVE, REPORT_PATH: R_OK.replace(EV_LINE, "- 证据：（无）")}, "audit:passed", 1),
+    ("report with wrong hash",
+     {**SENSITIVE, REPORT_PATH: R_OK.replace(EV_HASH, "0" * 64)}, "audit:passed", 1),
+    ("report with evidence outside diff",
+     {**SENSITIVE, REPORT_PATH: R_OK.replace("mod/network/a.cpp", "README.md")}, "audit:passed", 1),
+    ("relay path + ok report",
+     {"relay/node.cpp": "x", EV_PATH: _EV_CONTENT.decode("utf-8"),
+      REPORT_PATH: R_OK}, "audit:passed", 0),
 ]
 
 passed = failed = 0
