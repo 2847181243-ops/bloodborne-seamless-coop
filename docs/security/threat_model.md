@@ -6,7 +6,7 @@
 > 本文件覆盖 [docs/security/README.md](README.md) 交付判定第 1 条：**威胁模型完成，且覆盖任务书
 > §45.1 全部五类攻击**。
 >
-> **唯一需求来源**：`bloodbrone.markdown`（任务书 v3.0）。与本文件冲突时以任务书为准。
+> **唯一需求来源**：`bloodborne.markdown`（任务书 v3.0）。与本文件冲突时以任务书为准。
 
 ---
 
