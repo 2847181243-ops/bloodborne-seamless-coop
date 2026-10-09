@@ -67,6 +67,11 @@ param(
     # purpose: "did not check" must never look like "checked and fine", so a SKIP
     # yields exit 2 unless this flag is given.
     [switch]$AllowSkip,
+    # Record WHY you are proceeding despite skipped checks. This is the only way a
+    # SKIP may be treated as acceptable. It must be a substantive reason: empty,
+    # too short, or a platitude ("不适用" / "later" / "n/a") is rejected. If any skip
+    # could be waved through with a shrug, this mechanism would be theatre.
+    [string]$SkipReason,
     # Run against another working tree. Used by the negative-case tests so the
     # checks themselves are exercised, instead of a re-implementation drifting.
     [string]$Repo
@@ -733,6 +738,57 @@ if ($script:Unverified.Count -gt 0) {
     $script:Unverified | ForEach-Object { Write-Host "    - $_" -ForegroundColor Yellow }
 }
 
+  # ---- explicit skip with a trace ---------------------------------------------
+  # A SKIP alone is ambiguous: it cannot be distinguished from a check nobody
+  # noticed. -SkipReason turns "I chose to proceed" into a recorded, reviewable
+  # fact. The reason is validated, not just stored.
+  $skipTrace = Join-Path $PSScriptRoot 'skip-trace.json'
+  if ($SkipReason) {
+      $reason = $SkipReason.Trim()
+      # Platitudes that carry no information. Compared case-insensitively after
+      # stripping whitespace and punctuation.
+      $banned = @('不适用', '不相关', 'n/a', 'na', 'later', '以后', '待定', '无', 'none',
+                  'todo', 'tbd', '不知道', 'skip', '忽略', '随便', 'ok', 'fine')
+      $norm = ($reason -replace '[\s\p{P}]', '').ToLower()
+      $isBanned = $false
+      foreach ($b in $banned) { if ($norm -eq $b) { $isBanned = $true } }
+      if ($reason.Length -lt 12) {
+          Write-Host ''
+          Write-Host ('  ' + (M 'skipreason_short')) -ForegroundColor Red
+          Write-Host ('    ' + $reason) -ForegroundColor DarkGray
+          exit 3
+      }
+      if ($isBanned) {
+          Write-Host ''
+          Write-Host ('  ' + (M 'skipreason_platitude')) -ForegroundColor Red
+          Write-Host ('    ' + $reason) -ForegroundColor DarkGray
+          exit 3
+      }
+      $obj = [ordered]@{
+          recorded_at   = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+          reason        = $reason
+          stage         = $Stage
+          passed        = $script:Pass
+          failed        = $script:Fail
+          skipped       = $script:Skip
+          unverified    = @($script:Unverified)
+          branch        = (& git rev-parse --abbrev-ref HEAD 2>$null)
+          head          = (& git rev-parse --short HEAD 2>$null)
+      }
+      # StdEncoding (UTF-8 without BOM) written by hand: ConvertTo-Json + Set-Content
+      # in PowerShell 5.1 defaults to UTF-16/ANSI, which would corrupt the Chinese
+      # reason and break the encoding gate.
+      $json = ($obj | ConvertTo-Json -Depth 5)
+      [System.IO.File]::WriteAllText($skipTrace, $json, (New-Object System.Text.UTF8Encoding($false)))
+      Write-Host ''
+      Write-Host ('  ' + (M 'skipreason_recorded')) -ForegroundColor Yellow
+      Write-Host ('    ' + $reason) -ForegroundColor DarkGray
+      Write-Host ('    ' + $skipTrace) -ForegroundColor DarkGray
+  } elseif ($script:Skip -gt 0 -and -not $Strict) {
+      Write-Host ''
+      Write-Host ('  ' + (M 'skipreason_required')) -ForegroundColor Yellow
+  }
+
 # Exit codes carry meaning, not just 0/1. A caller (a human, a script, a teammate)
 # should be able to tell "failed" apart from "could not verify" without reading text.
 #   0 = pass
@@ -742,8 +798,11 @@ if ($script:Unverified.Count -gt 0) {
 #       "checked and fine" is how false confidence is manufactured.
 #   3 = could not start (bad arguments / missing environment)
 $exit = 0
+# A recorded, validated reason is what makes proceeding acceptable.
+$documentedSkip = [bool]$SkipReason
 if ($script:Fail -gt 0) { $exit = 1 }
-elseif ($script:Skip -gt 0 -and (-not $AllowSkip -or $Strict)) { $exit = 2 }
+elseif ($script:Skip -gt 0 -and $Strict) { $exit = 2 }
+elseif ($script:Skip -gt 0 -and -not $AllowSkip -and -not $documentedSkip) { $exit = 2 }
 elseif ($Stage -ge 2 -and (-not $PrBody -or -not (Test-Path $PrBody))) { $exit = 2 }
 
 Write-Host ''
