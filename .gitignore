@@ -85,6 +85,12 @@ tools/preci/.pylibs/
 # 需要时每人自己跑一次 setup 脚本。
 tools/toolchain/
 
+# ── 本地预检的跳过留痕（tools/preci/skip-trace.json）─────────
+# 由 preci.ps1 -SkipReason 生成，记录「带着哪些跳过项继续、为什么」。
+# 它是**每次运行的产物**，不是仓库内容：内容应写进 PR 供审计，文件本身不入库。
+# 若误提交，会随每人每次运行变化，产生毫无意义的 diff。
+tools/preci/skip-trace.json
+
 # ── Visual Studio / Rider / VS Code ──────────────────────────
 .vs/
 .vscode/
