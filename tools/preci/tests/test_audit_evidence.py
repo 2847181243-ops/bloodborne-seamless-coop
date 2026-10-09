@@ -66,13 +66,33 @@ rp_fwd = rp.replace("\\", "/")
 passed = failed = 0
 for name, ev, expect_fail in CASES:
     open(rp, "w", encoding="utf-8", newline="\n").write(build_report(ev))
-    body = step.replace(
-        'mapfile -t files < <(git diff --name-only "origin/$BASE_REF...HEAD")',
+    # Inject the changed-file list with a REGEX, not an exact string.
+    #
+    # This used to be `step.replace('mapfile -t files < <(git diff --name-only ...)')`,
+    # which silently did nothing whenever that line differed by so much as one
+    # character. It broke the moment the gate gained `-c core.quotepath=false`:
+    # the replacement no longer matched, `files` stayed empty, the gate exited early
+    # on "no sensitive paths", and all five "must be rejected" cases reported pass --
+    # making the suite look like the gate was broken when the test was.
+    #
+    # A regex anchored on "mapfile -t files < <( ... )" tolerates added git options.
+    body, n_files = re.subn(
+        r"mapfile -t files < <\([^\n]*\)",
         # seed the changed-file list: a sensitive path so the gate triggers,
         # plus the evidence target so the "in this PR" check can pass
-        f'mapfile -t files <<< "mod/security/x.cpp\n{TARGET}\n{RF_REL}"')
-    body = re.sub(r"mapfile -t reports < <\([^\n]*\)",
-                  f'mapfile -t reports <<< "{rp_fwd}"', body)
+        f'mapfile -t files <<< "mod/security/x.cpp\\n{TARGET}\\n{RF_REL}"',
+        step)
+    if n_files != 1:
+        print(f"  [BAD] 无法注入改动清单（匹配 {n_files} 处，期望 1 处）")
+        print("        说明 pr-guard.yml 里 `mapfile -t files` 的写法变了，本套件需要同步。")
+        failed += 1
+        continue
+    body, n_rep = re.subn(r"mapfile -t reports < <\([^\n]*\)",
+                          f'mapfile -t reports <<< "{rp_fwd}"', body)
+    if n_rep != 1:
+        print(f"  [BAD] 无法注入报告路径（匹配 {n_rep} 处，期望 1 处）")
+        failed += 1
+        continue
     sh = os.path.join(scratch, "run.sh")
     open(sh, "w", encoding="utf-8", newline="\n").write(
         "export LC_ALL=C.UTF-8\nexport BASE_REF=main\nexport LABELS=audit:passed\n"
