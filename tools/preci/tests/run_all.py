@@ -61,6 +61,7 @@ import _paths as P  # noqa: E402
 SUITES = [
     ("test_preci_negative", "本地预检 · 负例矩阵", "windows", ()),
     ("test_skip_reason", "跳过留痕机制", "windows", ()),
+    ("test_re_spec", "逆向文档格式校验", None, ()),
     ("test_build_std", "编译标准防削弱", None, ()),
     ("test_pg_strict", "PR 描述严格矩阵", None, ()),
     ("test_bp2", "分支与写入范围矩阵", None, ()),

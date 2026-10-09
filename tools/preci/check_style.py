@@ -292,6 +292,23 @@ def _cmake_call_args(text, command, target):
     return "\n".join(parts) if parts else None
 
 
+def check_re_docs(tree, errors, warns):
+    """Delegate the docs/re/ function-record checks to their own module.
+
+    Kept separate because that module has a distinctly different job: it validates a
+    DOCUMENT FORMAT, not code style. It also carries an explicit list of what it does
+    NOT check, which is important enough to live next to the rules themselves.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        import check_re_spec
+    except ImportError as e:  # pragma: no cover - only if the file goes missing
+        warns.append(("WARN", "tools/preci/check_re_spec.py", 0,
+                      f"无法导入逆向文档校验模块：{e}"))
+        return 0
+    return check_re_spec.check_re_docs(tree, errors, warns)
+
+
 def check_constraint_severity(tree, errors, warns):
     """Require a severity tier on every security constraint.
 
@@ -470,6 +487,7 @@ def main():
 
     check_build_standards(tree, errors)
     check_constraint_severity(tree, errors, warns)
+    check_re_docs(tree, errors, warns)
 
     if args.json:
         print(json.dumps({
