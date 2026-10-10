@@ -69,6 +69,7 @@ SUITES = [
     ("test_pg_strict", "PR 描述严格矩阵", None, ()),
     ("test_bp2", "分支与写入范围矩阵", None, ()),
     ("test_sync_branch", "sync/* 分支豁免前提", "windows", ()),
+    ("test_interfaces_contract", "接口层契约", None, ()),
     ("test_security_gate", "审计门禁矩阵", "bash", ()),
     ("test_audit_evidence", "审计证据核对", "bash", ()),
     ("wf_syntax", "workflow 语法", None, ()),
