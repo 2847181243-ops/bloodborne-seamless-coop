@@ -1,0 +1,95 @@
+name: 故障注入
+description: 一个故障场景的注入用例与断言（任务书 §41.3 模块 Gate 第 4 条、§52-d）
+title: "[FAULT] "
+labels: ["fault-injection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > 任务书 §52-d：**每当出现下列任一情况，必须同步更新故障注入套件与降级矩阵** ——
+        >
+        > - 新增一个模块
+        > - 一个模块新增对外的依赖
+        > - 一个模块的失败行为发生变化（原来会崩，现在降级；或反之）
+        > - 新增一类失败场景
+        >
+        > **"没环境"不是理由**：无法自动化的用例，必须逐个列出**具体技术原因**
+        > （缺哪类依赖、缺哪个系统能力），而不是一句"无法测试"。
+
+  - type: input
+    id: target_module
+    attributes:
+      label: 被注入故障的模块
+      placeholder: "mod.crypto"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fault_kind
+    attributes:
+      label: 故障类型
+      options:
+        - 进程被 kill
+        - 初始化失败（init 返回错误）
+        - 调用超时（tick 超时）
+        - 返回错误码
+        - 依赖缺失（外部资源不可用）
+        - 数据损坏（输入非法 / 截断）
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 故障场景
+      description: 怎么制造这个故障？给出可复制的命令或代码路径。
+    validations:
+      required: true
+
+  - type: textarea
+    id: assertion
+    attributes:
+      label: 明确断言
+      description: |
+        **每个用例必须有明确断言，不是"跑一下看看"**（任务书 §52-d）。
+        写清楚：期望观察到什么、退出码是多少、哪个字段等于什么。
+      placeholder: |
+        期望：进程存活（退出码 0）
+        kkill mod.crypto 后：
+          * bloodcoop-host --self-test 的 overall = "degraded"
+          * mod.crypto 的 health = "unavailable"
+          * 其他 14 个模块 health = "ok"
+          * 联机功能禁用，错误信息包含"加密不可用，已拒绝联机"
+    validations:
+      required: true
+
+  - type: textarea
+    id: degradation_row
+    attributes:
+      label: 更新后的降级矩阵行
+      description: 哪个模块失败 → 哪些功能降级 → 用户看到什么。
+      placeholder: |
+        | 失败模块 | 降级的功能 | 用户看到 |
+        |---|---|---|
+        | mod.crypto | 全部联机功能 | "加密不可用，已拒绝联机"；单机不影响 |
+    validations:
+      required: true
+
+  - type: textarea
+    id: raw_output
+    attributes:
+      label: 原始输出与证据
+      description: 实际输出，写进 `REFACTOR-REPORT.md`。不得只写结论。
+    validations:
+      required: true
+
+  - type: textarea
+    id: not_automated
+    attributes:
+      label: 未能自动化的部分及具体原因
+      description: |
+        无法自动化的用例逐个列出**具体技术原因**（缺哪类依赖、缺哪个系统能力）。
+        确实全部自动化了就写"全部已自动化"并给出套件路径。
+    validations:
+      required: true
