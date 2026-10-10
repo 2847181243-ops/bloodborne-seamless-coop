@@ -10,7 +10,7 @@
   "branch": "分支",
   "branch_agent_ok": "分支 '{0}'：agent/{1}-<topic> 形式合法",
   "branch_bad_agent": "分支 '{0}' 含未知 Agent 标识 '{1}'。合法值：{2}",
-  "branch_bad_form": "分支 '{0}' 命名不合法。必须为 lead/<topic>、agent/<agent>-<topic>、task/T-xxx-<slug> 或 fix/<topic>（任务书 §48-c / §48-d）",
+  "branch_bad_form": "分支 '{0}' 命名不合法。应为 lead/<topic>、agent/<id>-<topic>、task/T-xxx-<slug> 或 fix/<topic>（任务书 §48）",
   "branch_lead_ok": "分支 '{0}'：lead/<topic> 形式合法",
   "changed_n": "本次改了 {0} 个文件",
   "check_branch": "1/10 分支名是否符合规矩",
