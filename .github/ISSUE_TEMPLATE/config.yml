@@ -9,3 +9,9 @@ contact_links:
   - name: 贡献指南（分支模型 / 所有权 / 证据等级）
     url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/CONTRIBUTING.md
     about: 提交 PR 前必读。
+  - name: 维护者与所有权（权限矩阵 / 模块归属）
+    url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/MAINTAINERS.md
+    about: 谁可以做什么、哪些东西是谁的、哪些操作任何人都不能做。
+  - name: AI 执行者政策（AI 的行为边界）
+    url: https://github.com/2847181243-ops/bloodborne-seamless-coop/blob/main/AI_POLICY.md
+    about: AI 执行任务时的行为规则与硬性禁止。
