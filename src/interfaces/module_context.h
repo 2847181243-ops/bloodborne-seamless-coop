@@ -13,6 +13,7 @@
 
 #include <cstdint>
 
+#include "errors.h"
 #include "version.h"
 
 namespace bbcoop {
@@ -52,6 +53,22 @@ public:
     // **调用方必须处理 nullptr** —— 依赖缺失是正常状态，不是异常
     // （§3.6 原则 5：故障不传播）。
     virtual void* find(const char* service_name, int version_major) noexcept = 0;
+
+    // 发布一个能力，供其他模块查找。
+    //
+    // 没有这个方法，`find` 就是一条走不通的路 —— 模块无处注册自己的能力。
+    // 这是接口设计上的一个真实缺口：先写了查找、漏了注册。
+    //
+    // 约束：
+    //   * 同一个（名字, 主版本）重复发布返回 Error::Refused，
+    //     **不覆盖已有实现** —— 覆盖会让「谁在提供服务」变得不可预测。
+    //   * `service` 为 nullptr 返回 Error::InvalidArgument。
+    //   * 发布在 `IModule::init` 内完成；`shutdown` 后 Kernel 撤销该模块的全部发布。
+    virtual Error publish(const char* service_name, int version_major,
+                          void* service) noexcept = 0;
+
+    // 撤销发布。通常由 Kernel 在 `IModule::shutdown` 时代为调用。
+    virtual Error withdraw(const char* service_name, int version_major) noexcept = 0;
 };
 
 struct HostServices {

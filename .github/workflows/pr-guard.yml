@@ -196,7 +196,7 @@ jobs:
           for f in "${files[@]}"; do
             case "$f" in
               mod/security/*|mod/network/*|relay/*|tools/audit/*|tools/pentest/*|\
-              mod/session/*|mod/replication/*|mod/gameplay/*|mod/core/*|mod/platform/*|config/*)
+              mod/session/*|mod/replication/*|mod/gameplay/*|mod/core/*|mod/platform/*|config/*.yaml|config/*.yml|config/*.json)
                 touched[security]=1 ;;
             esac
             case "$f" in
@@ -345,7 +345,7 @@ jobs:
             case "$f" in
               mod/security/*|mod/network/*|relay/*|tools/audit/*|tools/pentest/*|\
               mod/session/*|mod/replication/*|mod/gameplay/*|mod/core/*|mod/platform/*|\
-              config/*)
+              config/*.yaml|config/*.yml|config/*.json)
                 echo "触及安全相关路径：$f"
                 sensitive=1
                 sensitive_files+=("$f")
