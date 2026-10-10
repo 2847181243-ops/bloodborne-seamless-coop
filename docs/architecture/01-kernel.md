@@ -131,10 +131,10 @@ Kernel 不得为 `mod.crypto` 失败提供「先用明文连上再说」的通�
 | K-4 | 模块健康状态的取值集合 | 任务书只在 T-007 出现过一个状态值 `Unavailable`（模块的初始实现默认返回它且不崩溃）；完整枚举未给 | T-004 / T-005 |
 | K-5 | 模块是运行时动态加载还是静态链接 | 任务书只给了 CMake target 结构（T-009），没有规定加载方式 | T-005 / T-009 |
 | K-6 | 模块崩溃如何被 Kernel 捕获 | 任务书承诺「任一非核心模块崩溃，进程存活」（§3.6 原则 5），但没有规定模块与 Kernel 是否在同一进程内、进程内崩溃如何被隔离与捕获 | T-005（这是该承诺能否成立的前提，见 [03-fault-isolation.md](03-fault-isolation.md) 第 6 节） |
-| K-7 | Kernel 的日志职责与 `mod.observability` 的分工 | 任务书 §3.6 原则 1 把「日志」列为 Kernel 职责，注册表又把 `mod.observability` 定义为「日志 / 指标」，两者边界未写 | T-004 / T-005 |
+| K-7 | Kernel 的日志职责与 `mod.observability` 的分工 | **已裁决（2026-10，AI-00，经 Human Owner 确认）**：Kernel 只做机制（接收 → 有界队列 → 单写线程 → 落盘；always-on；`[SECURITY]` 通道不经 observability 开关）；`mod.observability` 只做内容与策略（记录什么、级别、聚合、上报），整体保持在进程外；记录在头部带「可丢 / 不可丢」类别（诊断可丢并计数，审计类不静默丢）。依据见 `docs/references/prior-art-log-pipeline.md` | 已定（原 T-004 / T-005） |
 | K-8 | 事件总线的投递语义（同步或异步、是否允许阻塞、重入规则） | 任务书只写「事件总线」，没有规定语义 | T-004 / T-005 |
 | K-9 | `--self-test` 的 JSON 字段结构 | 任务书只给了 `overall: pass` 一个字段和「required 失败退出码非 0」 | T-014 |
-| K-10 | `src/platform/` 与 Kernel 的分工 | 任务书附录 A 只说明它不在 15 个模块内 | 需要裁决 |
+| K-10 | `src/platform/` 与 Kernel 的分工 | **已裁决（2026-10，AI-00，经 Human Owner 确认）**：Kernel 只发终止请求（策略面）；机制（创建 / 终止 / 作业对象 / 受限令牌）先收在 T-021 内部的窄适配层。触发重开：`src/platform/` 有任务卡与所有权条目时，把机制实现迁入，接口不变；「已死」以可等待的作业 / 进程状态为准，OS 通知只作快速路径。依据见 `docs/references/prior-art-process-supervision.md` | 已定（原「需要裁决」） |
 
 Kernel 的日志、事件总线、配置读取都必须遵守 `docs/security/constraints.md` C-016：
 任何日志（含调试日志）不得记录 IP、平台账号 ID、硬件指纹、设备信息、地理位置或任何可追踪标识。
