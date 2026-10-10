@@ -281,7 +281,14 @@ Write-Info (M 'changed_n' @($changed.Count))
 # CI's branch-policy matches lead/* on a plain glob, so a lead topic needs no
 # hyphen ('lead/wfbad' is legal). agent/* needs <id>-<topic>. An earlier single
 # regex required a hyphen for BOTH and wrongly rejected legal lead branches.
-$rxBranch = '^(lead/[^/]+|agent/[a-z0-9]+-[^/]+)$'
+#
+# v2.0 (task book §48-d) added task/T-xxx-<slug> and fix/<topic>. MISSING THIS HERE
+# was a real regression: the CI side (branch-policy.yml) learned about task/* but the
+# local pre-CI did not, so every task-card branch failed locally with
+# "分支 'task/T-000-...' 命名不合法" -- and because preci.ps1 is what the two
+# PowerShell suites drive, the failure surfaced as confusing exit=1 in the regression
+# matrix rather than as a clear "your branch name is stale" message.
+$rxBranch = '^(lead/[^/]+|agent/[a-z0-9]+-[^/]+|task/T-[0-9]+-[^/]+|fix/[^/]+)$'
 $ref = Get-HeadRef
 
 # ---- stage 1 ----------------------------------------------------------------
@@ -293,6 +300,10 @@ if ($Stage -ge 1) {
     } elseif ($ref -match $rxBranch) {
         if ($ref -match '^lead/') {
             Write-Ok (M 'branch_lead_ok' @($ref))
+        } elseif ($ref -match '^task/') {
+            Write-Ok (M 'branch_task_ok' @($ref))
+        } elseif ($ref -match '^fix/') {
+            Write-Ok (M 'branch_fix_ok' @($ref))
         } else {
             $id = ($ref -replace '^agent/', '') -replace '-.*$', ''
             $valid = @('a0','a1','a2','a3','a4','b1','b2','b3','b4','c1','c2','c3','c4','lead')
@@ -314,6 +325,8 @@ if ($Stage -ge 1) {
         # Agent id must come from the AGENT segment only:
         #   lead/<topic>            -> agent is 'lead'  (topic may contain '-')
         #   agent/<id>-<topic>      -> agent is <id>
+        #   task/T-xxx-<slug>       -> scope key is 'task' (task cards carry no agent id)
+        #   fix/<topic>             -> scope key is 'task' (same transition scope)
         # Using a single regex on the whole ref mis-parsed
         # 'lead/pr-guard-strict' as agent 'pr' (the first hyphen-delimited token).
         $agent = ''
@@ -321,6 +334,8 @@ if ($Stage -ge 1) {
             $agent = 'lead'
         } elseif ($ref -match '^agent/([a-z0-9]+)-') {
             $agent = $Matches[1]
+        } elseif ($ref -match '^task/' -or $ref -match '^fix/') {
+            $agent = 'task'
         }
         if (-not $agent) {
             Write-Skip (M 'scope_noagent')

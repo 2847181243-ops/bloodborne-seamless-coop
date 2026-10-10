@@ -1,0 +1,97 @@
+name: 层出口验收
+description: 一个 Layer 的出口条件是否达标（任务书 §41.3、§52-b 的层间串行约束）
+title: "[GATE] Layer -"
+labels: ["layer-gate"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **层出口条件未通过时，上层模块的 PR 不得合并**（任务书 §52-b）。
+        >
+        > 理由：模块化架构的价值在于"故障不传播"。如果上层在底层出口未验证时就合入，
+        > 底层的故障会立刻传播到上层，而排查时无法判断是底层没做好还是上层写错了 ——
+        > **故障边界的验证顺序被打乱，等于没有边界。**
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: 验收哪一层
+      options:
+        - Layer 0 —— P2P 传输、发现、中继、加密、Session 核心
+        - Layer 1 —— 游戏 Hook、复制核心、加入离开、区域同步
+        - Layer 2 —— 死亡、世界重置、敌人、掉落、PvP、存档
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 出口条件（任务书 §41.3）
+
+        | Layer | 出口条件 |
+        |---|---|
+        | Layer 0 | `bloodcoop-net` CLI 可完成房间码连接、双向收发、断线重连，稳定 30 分钟 |
+        | Layer 1 | 双人游戏内互相可见、可移动、可切换区域，客机加入不触发原版召唤 |
+        | Layer 2 | 完整 Session 可完成一个区域；任一 L2 模块禁用不影响其他模块与 P2P |
+
+        ⚠️ 上面的措辞是**自然语言**。验收时必须转成**可判定项**（脚本 + 退出码），
+        否则只能靠人说"我觉得可以了"。
+
+  - type: textarea
+    id: criterion
+    attributes:
+      label: 本次采用的判定方式
+      description: 把自然语言的出口条件转成具体命令与退出码。
+      placeholder: |
+        条件原文：稳定 30 分钟
+        判定方式：scripts/run_layer0_soak.sh 连续运行 30 分钟，
+                 每 5 秒 ping 一次，丢包率 > 1% 或连接断开即退出码 1。
+    validations:
+      required: true
+
+  - type: textarea
+    id: raw_output
+    attributes:
+      label: 原始命令输出
+      description: |
+        **必须贴原始输出，不得只写结论**（任务书 §41.6 第 5 条）。
+        包括退出码。
+    validations:
+      required: true
+
+  - type: textarea
+    id: matrix
+    attributes:
+      label: 覆盖了哪些模块
+      description: 本层包含的模块逐个列出，并说明是否都通过了模块 Gate（§41.3 五条）。
+    validations:
+      required: true
+
+  - type: textarea
+    id: degradation
+    attributes:
+      label: 降级行为验证
+      description: 逐个禁用本层的非核心模块，核心系统是否仍可用？
+    validations:
+      required: true
+
+  - type: textarea
+    id: not_covered
+    attributes:
+      label: 明确未覆盖的部分
+      description: |
+        如实写明哪些没验、为什么。**不要用"未覆盖：无"敷衍** ——
+        如果确实覆盖完整，说明覆盖方式；如果没覆盖，写明具体技术原因。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: conclusion
+    attributes:
+      label: 结论
+      options:
+        - 通过 —— 可以合并上层模块
+        - 不通过 —— 上层模块继续等待
+        - 部分通过 —— 说明哪些条件未达标（见上方「明确未覆盖」）
+    validations:
+      required: true

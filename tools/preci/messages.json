@@ -10,7 +10,7 @@
   "branch": "分支",
   "branch_agent_ok": "分支 '{0}'：agent/{1}-<topic> 形式合法",
   "branch_bad_agent": "分支 '{0}' 含未知 Agent 标识 '{1}'。合法值：{2}",
-  "branch_bad_form": "分支 '{0}' 命名不合法。必须为 agent/<agent>-<topic> 或 lead/<topic>（任务书 §48）",
+  "branch_bad_form": "分支 '{0}' 命名不合法。应为 lead/<topic>、agent/<id>-<topic>、task/T-xxx-<slug> 或 fix/<topic>（任务书 §48）",
   "branch_lead_ok": "分支 '{0}'：lead/<topic> 形式合法",
   "changed_n": "本次改了 {0} 个文件",
   "check_branch": "1/10 分支名是否符合规矩",
@@ -84,5 +84,7 @@
   "skipreason_required": "有 {0} 项检查被跳过。若要带着跳过项继续，必须用 -SkipReason \"<理由>\" 说明原因 ——跳过本身无法区分「有意为之」与「没人注意到」，而后者才是危险的。",
   "skipreason_short": "跳过理由太短，没有说明任何东西。请写清：跳过了什么、为什么现在可以不查、以及什么时候会补上。",
   "skipreason_platitude": "跳过理由是无信息量的套话（如「不适用」「以后」「n/a」）。如果任何跳过都能用一句敷衍放过去，这个机制就是摆设。",
-  "skipreason_recorded": "已记录跳过理由（退出码按通过处理）。该记录应写进 PR 供审计。"
+  "skipreason_recorded": "已记录跳过理由（退出码按通过处理）。该记录应写进 PR 供审计。",
+  "branch_task_ok": "分支 '{0}'：task/T-xxx-<slug> 形式合法（任务书 §48-d）",
+  "branch_fix_ok": "分支 '{0}'：fix/<topic> 形式合法（任务书 §48-d）"
 }
