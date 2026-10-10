@@ -116,26 +116,36 @@ else()
         $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>)
 endif()
 
+# ── 接口层（v1 冻结） ───────────────────────────────────────────────────────
+#
+# 接口层已经落地（T-004），所以这里**真的** add_subdirectory。
+# 它是 INTERFACE 库：只有头文件，没有源文件，因此不会因为目录"空"而报错。
+#
+# 依赖方向是单向的（见 src/README.md）：
+#
+#     modules/*  ->  interfaces/  <-  kernel/
+#
+# 模块通过 `target_link_libraries(<模块> PRIVATE bloodcoop::interfaces)`
+# 获得 include 路径，而不是用相对路径互相找头文件。
+add_subdirectory(src/interfaces)
+
 # ── 模块 ────────────────────────────────────────────────────────────────────
 #
-# 源码尚不存在（Phase 0）。以下目录**故意**先不 add_subdirectory，
-# 否则 CMake 会因为目录为空而报错，构建门禁会红。
+# 模块骨架与 Kernel 尚未实现（T-005 / T-007）。以下目录**故意**先不
+# add_subdirectory，否则 CMake 会因为目录为空而报错，构建门禁会红。
 # 每个模块落地时按下表加入，并**必须**链接 bbcoop_warnings：
 #
-#   mod/core/          AI-A1   HookManager / AddressResolver / VersionChecker / Logger
-#   mod/platform/      AI-A0   bbport 适配 / 启动器集成
-#   mod/session/       AI-A2   会话与状态复制
-#   mod/replication/   AI-A2   状态复制
-#   mod/gameplay/      AI-A3   玩家 / 敌人 / Boss / 死亡 / Lantern / 世界
-#   mod/balance/       AI-A4   数值与 PvP
-#   mod/security/      AI-C1   E2EE / 密钥交换 / 完整性校验
-#   mod/network/       AI-B1..B3  传输 / 发现 / 信誉
-#   relay/             AI-B4   中继
+#   src/kernel/               AI-00  加载 / 健康 / 熔断（T-005）
+#   src/platform/             AI-00  bbport 适配 / 启动器集成
+#   src/modules/*             各模块 见任务书 §3.6 注册表（T-007）
+#
+# v1.0 的 `mod/` 路径（mod/core、mod/session、mod/network/... ）从未在本仓库
+# 存在过，因此没有"废弃目录"要标注；对应关系见任务书附录 A。
 #
 # 加入时写成：
-#     add_subdirectory(mod/core)
+#     add_subdirectory(src/modules/transport)
 # 并在该模块的 CMakeLists.txt 里写：
-#     target_link_libraries(<target> PRIVATE bbcoop_warnings)
+#     target_link_libraries(<target> PRIVATE bbcoop_warnings bloodcoop::interfaces)
 #
 # 做「编译标准是否生效」的自检：配置阶段就断言 /WX 在位。
 # 这样一旦有人删掉它，配置阶段就会失败，而不是等到某天发现警告变多了。
