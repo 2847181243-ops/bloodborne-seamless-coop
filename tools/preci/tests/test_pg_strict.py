@@ -110,6 +110,9 @@ def body(sections_ok=True, issue_line="- 关联 Issue：#5", verify="Compile Ver
         "是否存在兼容性风险": "无",
         # 作者也可能把等级写在正文里；门禁对此做两级回退
         "当前验证等级": level_text if level_text is not None else "（无）",
+        # 门禁只检查本节存在且非空；质量判不了，靠写的人。
+        # 夹具里给一句真实内容，正面用例才有意义。
+        "决策与不确定记录": ("1. 无\n2. 无\n3. 无 —— 本次由 test_pg_strict 覆盖确认真做对了"),
     }
     if evidence is not None:
         s["证据等级（涉及逆向结论时必填）"] = f"- [x] {evidence}"
