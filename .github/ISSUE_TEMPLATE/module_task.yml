@@ -1,0 +1,112 @@
+name: 模块任务
+description: 新建或修改一个模块的实现（任务书 §41.1 的任务卡、§48-c 的模块所有权）
+title: "[MOD] "
+labels: ["module"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > 一个模块 = 一个所有权单元（任务书 §48-c）。
+        > 模块的完整清单与层级见任务书 **§3.6**，那是唯一来源。
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: 所属层
+      options:
+        - Kernel
+        - Layer 0（P2P 基础）
+        - Layer 1（游戏集成）
+        - Layer 2（游戏系统）
+        - 贯穿性辅助
+    validations:
+      required: true
+
+  - type: input
+    id: module_id
+    attributes:
+      label: 模块 ID
+      description: 必须是任务书 §3.6 注册表里的 ID，不要自造。
+      placeholder: "mod.transport"
+    validations:
+      required: true
+
+  - type: input
+    id: path
+    attributes:
+      label: 模块路径
+      placeholder: "src/modules/transport/"
+    validations:
+      required: true
+
+  - type: input
+    id: task_card
+    attributes:
+      label: 对应任务卡
+      description: 任务书 §41.1 里的 T-xxx。一个 Issue 只对一个任务卡。
+      placeholder: "T-007"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 本模块的职责边界
+      description: 写清楚**做什么**，以及**明确不做什么**。后半部分同样重要。
+    validations:
+      required: true
+
+  - type: textarea
+    id: interfaces
+    attributes:
+      label: 对外接口
+      description: 依赖哪些 `src/interfaces/` 的冻结接口？本模块暴露哪些能力？
+    validations:
+      required: true
+
+  - type: textarea
+    id: behaviour
+    attributes:
+      label: 本模块的原版行为约束
+      description: |
+        取自任务书里对应的设计章节，**标注行号**。
+        ⚠️ 这是任务书附录 B 特别强调的一条：v2.0 只规定了模块边界，
+        没有规定模块内部该做什么。游戏机制设计（死亡经济、掉落、存档等）
+        在任务书 §9–§25 里，必须带过来，否则模块任务书会写成空壳。
+    validations:
+      required: true
+
+  - type: textarea
+    id: failure
+    attributes:
+      label: 失败行为与降级路径
+      description: |
+        本模块失败时：进程是否存活？哪些功能降级？用户看到什么？
+        任务书 §3.6 第 5 条要求「故障不传播」——所以这条必须回答，
+        不能只写"不会失败"。
+    validations:
+      required: true
+
+  - type: textarea
+    id: gates
+    attributes:
+      label: 模块 Gate 自检结果
+      description: 任务书 §41.3 的五条，逐条给出实际输出，不要只写结论。
+      value: |
+        ```
+        [ ] 1. 单元测试
+        [ ] 2. 契约测试
+        [ ] 3. 独立运行测试
+        [ ] 4. 故障注入测试
+        [ ] 5. 禁用后核心系统仍可用测试
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: 验收方式
+      description: 可复制的命令 + 期望输出。不要写"测试通过"。
+    validations:
+      required: true

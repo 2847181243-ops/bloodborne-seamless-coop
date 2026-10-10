@@ -1441,6 +1441,180 @@ Phase 14  Balance / 数据持久化 / 兼容性
 Phase 15  Regression / Stability
 ```
 
+**v2.0 变更**：Phase 1–15 是 v1.0 的执行计划，**由下面的任务卡替代**。
+两者的覆盖关系见附录 B。原文保留作为历史对照，实施以 41.1 的任务卡为准。
+
+### 41.1 v2.0 任务卡（v2.0 新增）
+
+**执行单元从 Phase 改为任务卡**（T-xxx）。一个任务卡 = 一个 Issue = 一个分支
+= 一个 PR。分支命名与权限见 §48-d。
+
+#### 批次 A：治理与文档
+
+| ID | 任务 | 产出 | 验收 |
+|---|---|---|---|
+| T-000 | 治理初始化 | `MAINTAINERS.md`、`AI_POLICY.md`、`SECURITY.md`、`CODEOWNERS`、PR / Issue 模板、`CONTRIBUTING.md` | 权限矩阵与禁止事项完整，Human Owner 可据此配置分支保护 |
+| T-001 | 架构文档 | `docs/architecture/00-overview.md` ~ `04-degradation-matrix.md` | 覆盖 Kernel、模块契约、故障隔离、降级矩阵 |
+| T-002 | 增补 `bloodborne.markdown` | §3.6 / §3.7 / §48-c / §48-d / §52-b / §52-c / §52-d + 附录 A/B | 原文不改写，附录 B 覆盖原 Phase 1–15 |
+| T-003 | 目录骨架 | `src/kernel/`、`src/interfaces/`、`src/modules/`、`tests/`、`config/`、`docs/modules/`、`scripts/` | 15 个模块目录就绪，旧 `mod/` 加废弃说明 |
+
+#### 批次 B：Kernel 与接口
+
+| ID | 任务 | 产出 | 验收 |
+|---|---|---|---|
+| T-004 | 接口层 | `imodule.h`、`itransport.h`、`isession.h`、`igameplay.h`、`module_context.h`、`version.h`、`errors.h` | 可独立编译，不依赖模块头文件，标注 v1 冻结 |
+| T-005 | Kernel / Module Host | 模块加载、注册表、事件总线、健康巡检、熔断、`bloodcoop-host` | `init` 失败不阻断其他模块；`tick` 超时熔断；`--self-test` 输出 JSON |
+| T-006 | Kernel 单元测试 | 3 个测试夹具 + 4 个单元测试 | 覆盖加载、故障隔离、熔断、健康聚合 |
+
+#### 批次 C：模块骨架与配置
+
+| ID | 任务 | 产出 | 验收 |
+|---|---|---|---|
+| T-007 | 15 个模块骨架 | 每个模块 `module.cpp/.h`、`CMakeLists.txt`、`README.md`、`tests/contract_test.cpp` | 全部可独立编译，默认返回 `Unavailable` 不崩溃 |
+| T-008 | 配置文件 | `config/modules.yaml`、`features.yaml`、`schema.json` | 覆盖 15 模块 + kernel；未知模块 ID 拒绝启动 |
+| T-009 | CMake 目标结构 | `bloodcoop::kernel`、`bloodcoop::interfaces`、每模块 target、`bloodcoop-host`、`bloodcoop-net` | 模块间非法链接被 CMake 拒绝；删除单模块后其余仍可构建 |
+| T-010 | 模块任务书 | `docs/modules/<module>.md` × 15 + `_template.md` | 字段完整，与附录 A 一致 |
+| T-011 | GitHub Issue 模板 | `module_task.md`、`layer_gate.md`、`fault_injection.md`、`bug_report.md` | 可渲染，含 labels 建议 |
+
+#### 批次 D：CI 与故障注入
+
+| ID | 任务 | 产出 | 验收 |
+|---|---|---|---|
+| T-012 | 分层 CI | build / test-unit / test-contract / fault-injection / module-isolation 五个 workflow | module-isolation 逐个禁用非核心模块并断言自检退出码 0 |
+| T-013 | 故障注入套件 | kill / timeout / crypto fail / hook fail / L2 全禁用 | 每个用例有明确断言；L2 全禁用模拟运行 ≥30 分钟 |
+
+#### 批次 E：自检与发布
+
+| ID | 任务 | 产出 | 验收 |
+|---|---|---|---|
+| T-014 | `--self-test` | `bloodcoop-host --self-test` + `scripts/self_test.sh` | JSON 输出；required 失败退出码非 0；CI 可解析 |
+| T-015 | 发布包 | `scripts/package.sh` + `dist/` | 干净环境可运行 `self_test.sh`；不含未启用模块测试资产 |
+| T-016 | 旧目录兼容 | `mod/README-DEPRECATED.md` + `MIGRATION.md` | 旧路径有对应或标注废弃 |
+| T-017 | 根 README 更新 | 架构概览、模块清单、构建自检、功能开关、降级说明 | 命令可复制执行；模块表与 `modules.yaml` 一致 |
+
+#### 批次 F：全局验收与发布
+
+| ID | 任务 | 产出 | 验收 |
+|---|---|---|---|
+| T-018 | 全局 Gate 自检 | `reports/global-gate-<date>.md` | 9 项检查全通过（见 41.3） |
+| T-019 | 分支保护与 CODEOWNERS | GitHub 配置 | `main` 必须 Owner 批准；`develop` 必须 CI 全绿 |
+| T-020 | Release `v0.1.0-modular` | Release Notes + Tag | 需 Human Owner 批准；发布包含自检命令 |
+
+#### 每个任务卡的标准工作流
+
+1. 创建 Issue：`[T-xxx] <任务名>`
+2. 从 `develop` 创建分支：`task/T-xxx-<slug>`
+3. 实现 + 单元测试 + 契约测试 + 故障注入（如适用）
+4. 更新文档与 `REFACTOR-REPORT.md`
+5. 本地运行：build / test / self-test / fault-injection / module-isolation
+6. 提交：`[T-xxx] type(scope): subject`
+7. 创建 PR，关联 Issue，填写 PR 模板
+8. **本地预检与预 CI 通过后**才请求合并（本仓库既有要求）
+9. Squash merge 到 `develop`
+10. 更新 `REFACTOR-REPORT.md`
+
+### 41.2 v2.0 执行顺序与串行约束（v2.0 新增）
+
+```text
+T-000 → T-001 → T-002 → T-003 → T-004 → T-005 → T-006 → T-007
+→ T-008 / T-009 / T-010 / T-011（并行）
+→ T-012 / T-013（并行）
+→ T-014 / T-015 / T-016 / T-017（并行）
+→ T-018 → T-019 → T-020
+```
+
+**串行约束**
+
+- T-004 未完成前不得开始 T-005。
+- T-005 未完成前不得开始 T-007。
+- **Layer 0 出口条件未通过前，不得合并 Layer 1 模块。**
+- **Layer 1 出口条件未通过前，不得合并 Layer 2 模块。**
+- T-018 未通过前不得进入 T-020。
+
+后两条与 §52-b 是同一条规则，那里从"跨 Agent Issue"的角度写了一遍。
+
+### 41.3 Gate 验收标准（v2.0 新增）
+
+#### 模块 Gate（每个模块必须通过）
+
+1. 单元测试
+2. 契约测试
+3. 独立运行测试
+4. 故障注入测试
+5. 禁用后核心系统仍可用测试
+
+#### Layer 出口条件
+
+| Layer | 出口条件 |
+|---|---|
+| Layer 0 | `bloodcoop-net` CLI 可完成房间码连接、双向收发、断线重连，稳定 30 分钟 |
+| Layer 1 | 双人游戏内互相可见、可移动、可切换区域，客机加入不触发原版召唤 |
+| Layer 2 | 完整 Session 可完成一个区域；任一 L2 模块禁用不影响其他模块与 P2P |
+
+⚠️ 这三条目前是**自然语言**。实施时必须转成可判定项（脚本 + 退出码），
+否则只能靠人说"我觉得可以了"。这是 §3.7 已指出的同一问题，此处给出落点。
+
+#### 全局 Gate（T-018 的 9 项）
+
+1. 全量构建成功
+2. 全量单元测试通过
+3. 全量契约测试通过
+4. 故障注入全部通过
+5. 模块隔离全部通过
+6. `--self-test` 输出 `overall: pass`
+7. 禁用全部 L2 模块后游戏单机 30 分钟无崩溃
+8. `crypto` 失败 → 拒绝联机，不降级明文
+9. 任一非核心模块崩溃 → 进程存活，其他模块继续工作
+
+与 §3.7 的全局 Gate 是同一份清单。**两处都保留**：§3.7 在架构语境下，
+本节在验收语境下。若将来要改，**两处必须同时改**。
+
+### 41.4 v2.0 交付物总览（v2.0 新增）
+
+```text
+仓库根
+├── MAINTAINERS.md / AI_POLICY.md / SECURITY.md
+├── MIGRATION.md / REFACTOR-REPORT.md / README.md
+├── bloodborne.markdown（仅增补）
+├── .github/{CODEOWNERS, workflows/, ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md, CONTRIBUTING.md}
+├── docs/{architecture/, modules/}
+├── config/{modules.yaml, features.yaml, schema.json}
+├── src/{kernel/, interfaces/, modules/, platform/}
+├── tests/{unit/, contract/, integration/, fault_injection/, fixtures/}
+├── scripts/{self_test.sh, run_fault_injection.sh, run_module_isolation.sh, package.sh}
+├── reports/{global-gate-<date>.md, security/}
+└── dist/（发布包）
+```
+
+### 41.5 v2.0 维护者报告要求（v2.0 新增）
+
+每个任务合并后，在 `REFACTOR-REPORT.md` 追加一行：
+
+| 字段 | 内容 |
+|---|---|
+| 任务 ID | T-xxx |
+| Commit | hash |
+| 分支 | `task/T-xxx-...` |
+| CI 结果 | 链接或摘要 |
+| 自检输出 | 关键 JSON |
+| 阻塞项 | 无 / 说明 |
+| 下一任务 | T-xxx |
+
+最终 `REFACTOR-REPORT.md` 必须让 Human Owner 只看一份文件就能判断：
+**哪些模块已独立可用，哪些模块失败会降级到什么程度，当前发布包是否安全。**
+
+### 41.6 v2.0 执行提示（v2.0 新增）
+
+1. 每任务开始前 `git status` 确认工作区干净。
+2. 每任务独立 commit，不跨任务合并提交。
+3. 遇到与任务书冲突的现有文件，**保留旧文件 + 新增新文件**，不覆盖。
+4. 无法确定的内容按任务书表格填写，**不臆造**。
+5. T-018 报告必须附**原始命令输出**，不得只写结论。
+6. **T-000 的 PR 不得自动合并，必须 Human Owner 审批。**
+7. 全部完成后创建 `REFACTOR-REPORT.md` 汇总每个任务的完成状态、commit hash、验收结果。
+8. 细节实现（文件内容、代码结构、测试用例）由 AI Maintainer 按任务书原则自行决定，
+   但**不得违反 §3.6 的硬性禁止与六条核心原则**。
+
 
 ## 42. AI 最终交付报告
 

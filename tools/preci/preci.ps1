@@ -149,6 +149,36 @@ function Write-Skip([string]$t) {
 function Write-Info([string]$t) { Write-Host "         $t" -ForegroundColor DarkGray }
 
 # ---- helpers ----------------------------------------------------------------
+function Resolve-Python {
+    # Resolve a REAL python interpreter.
+    #
+    # Why this is not just `Get-Command python`:
+    # Windows ships an "app execution alias" at
+    #   %LOCALAPPDATA%\Microsoft\WindowsApps\python.exe
+    # which is a 0-byte reparse point. It answers `--version` in an interactive
+    # shell but fails with "The file cannot be accessed by the system" when
+    # launched non-interactively with redirected output -- which is how preci
+    # calls it. That produced a non-zero exit code from a checker that never ran,
+    # and the style gate then reported it as "0 处问题".
+    #
+    # Order: project-local venv -> non-stub PATH entries -> py launcher.
+    $local = @(
+        (Join-Path $PSScriptRoot '.venv\Scripts\python.exe'),
+        (Join-Path $PSScriptRoot '.pylibs\Scripts\python.exe')
+    )
+    foreach ($p in $local) { if (Test-Path $p) { return $p } }
+
+    foreach ($cand in @('python', 'python3', 'py')) {
+        foreach ($c in @(Get-Command $cand -All -ErrorAction SilentlyContinue)) {
+            $src = $c.Source
+            if (-not $src) { continue }
+            if ($src -like '*\WindowsApps\*') { continue }   # app execution alias
+            return $src
+        }
+    }
+    return $null
+}
+
 function Get-BashPath {
     foreach ($p in @("$env:ProgramFiles\Git\bin\bash.exe",
                      "${env:ProgramFiles(x86)}\Git\bin\bash.exe",
@@ -281,8 +311,18 @@ Write-Info (M 'changed_n' @($changed.Count))
 # CI's branch-policy matches lead/* on a plain glob, so a lead topic needs no
 # hyphen ('lead/wfbad' is legal). agent/* needs <id>-<topic>. An earlier single
 # regex required a hyphen for BOTH and wrongly rejected legal lead branches.
-$rxBranch = '^(lead/[^/]+|agent/[a-z0-9]+-[^/]+)$'
+#
+# v2.0 (task book §48-d) added task/T-xxx-<slug> and fix/<topic>. MISSING THIS HERE
+# was a real regression: the CI side (branch-policy.yml) learned about task/* but the
+# local pre-CI did not, so every task-card branch failed locally with
+# "分支 'task/T-000-...' 命名不合法" -- and because preci.ps1 is what the two
+# PowerShell suites drive, the failure surfaced as confusing exit=1 in the regression
+# matrix rather than as a clear "your branch name is stale" message.
+$rxBranch = '^(lead/[^/]+|agent/[a-z0-9]+-[^/]+|task/T-[0-9]+-[^/]+|fix/[^/]+|sync/[^/]+)$'
 $ref = Get-HeadRef
+# sync/* 分支不走写入范围检查（下方会验证它与 main 的树一致，故无内容可归属）。
+# 用这个标志把范围检查整段跳过，而不是让它对一个不适用的情况报错。
+$script:SyncHandled = $false
 
 # ---- stage 1 ----------------------------------------------------------------
 if ($Stage -ge 1) {
@@ -293,6 +333,12 @@ if ($Stage -ge 1) {
     } elseif ($ref -match $rxBranch) {
         if ($ref -match '^lead/') {
             Write-Ok (M 'branch_lead_ok' @($ref))
+        } elseif ($ref -match '^task/') {
+            Write-Ok (M 'branch_task_ok' @($ref))
+        } elseif ($ref -match '^fix/') {
+            Write-Ok (M 'branch_fix_ok' @($ref))
+        } elseif ($ref -match '^sync/') {
+            Write-Ok (M 'branch_sync_ok' @($ref))
         } else {
             $id = ($ref -replace '^agent/', '') -replace '-.*$', ''
             $valid = @('a0','a1','a2','a3','a4','b1','b2','b3','b4','c1','c2','c3','c4','lead')
@@ -306,6 +352,36 @@ if ($Stage -ge 1) {
         Write-Bad (M 'branch_bad_form' @($ref))
     }
 
+    # ── sync/* : 内容必须与 main 的树完全一致 ───────────────────────────────
+    #
+    # 同步分支把 main 的状态原样搬到 develop，**不改任何人的文件**，
+    # 所以写入范围检查对它不适用。
+    #
+    # 但"不适用"不能靠分支名来相信。这里验证分支的树与 origin/main 完全相同：
+    # 一致 -> 放过（确实没有内容可归属）；不一致 -> **失败**，不退回去做范围检查。
+    # 一旦有人在 sync/* 上放了改动，树就不再等于 main，门禁立刻失败。
+    #
+    # 这段必须与 .github/workflows/branch-policy.yml 的同名判定保持一致 ——
+    # 之前 task/* 只改了 CI 没改本地，导致每个任务卡分支在本地都被误判。
+    if ($ref -match '^sync/') {
+        Write-Head (M 'check_scope')
+        git fetch --no-tags origin main 2>$null | Out-Null
+        $hasMain = (git rev-parse --verify --quiet origin/main 2>$null)
+        if (-not $hasMain) {
+            Write-Bad (M 'sync_nomain')
+        } else {
+            git diff --quiet origin/main HEAD 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok (M 'sync_ok' @($ref))
+            } else {
+                Write-Bad (M 'sync_dirty' @($ref))
+            }
+        }
+        # 后续的范围检查对 sync 分支不适用
+        $script:SyncHandled = $true
+    }
+
+    if (-not $script:SyncHandled) {
     Write-Head (M 'check_scope')
     $scope = Get-ScopeTable
     if ($scope.Count -eq 0) {
@@ -314,6 +390,8 @@ if ($Stage -ge 1) {
         # Agent id must come from the AGENT segment only:
         #   lead/<topic>            -> agent is 'lead'  (topic may contain '-')
         #   agent/<id>-<topic>      -> agent is <id>
+        #   task/T-xxx-<slug>       -> scope key is 'task' (task cards carry no agent id)
+        #   fix/<topic>             -> scope key is 'task' (same transition scope)
         # Using a single regex on the whole ref mis-parsed
         # 'lead/pr-guard-strict' as agent 'pr' (the first hyphen-delimited token).
         $agent = ''
@@ -321,6 +399,8 @@ if ($Stage -ge 1) {
             $agent = 'lead'
         } elseif ($ref -match '^agent/([a-z0-9]+)-') {
             $agent = $Matches[1]
+        } elseif ($ref -match '^task/' -or $ref -match '^fix/') {
+            $agent = 'task'
         }
         if (-not $agent) {
             Write-Skip (M 'scope_noagent')
@@ -343,6 +423,7 @@ if ($Stage -ge 1) {
             }
         }
     }
+    }   # end: not a sync/* branch
 
     Write-Head (M 'check_encoding')
     $enc = @'
@@ -465,14 +546,10 @@ exit $fail
         # trap from path-filtered required checks. Soft dependency: needs a Python
         # with PyYAML. Absence is reported as SKIP (counted as UNVERIFIED), never
         # as a pass.
-        $py = $null
         # Prefer a project-local install (tools/preci/.pylibs) so a machine with no
-        # PATH python still gets structure validation. Then PATH.
+        # PATH python still gets structure validation. Then a real PATH python.
         $localPy = Join-Path $PSScriptRoot '.pylibs'
-        foreach ($cand in @('python', 'python3', 'py')) {
-            $c = Get-Command $cand -ErrorAction SilentlyContinue
-            if ($c) { $py = $c.Source; break }
-        }
+        $py = Resolve-Python
         if ($py) {
             if (Test-Path $localPy) {
                 $env:PYTHONPATH = $localPy + [IO.Path]::PathSeparator + $env:PYTHONPATH
@@ -548,11 +625,7 @@ echo "SEC_OK"
     # book's comment rule: bloodborne.markdown:1160 forbids mass-commenting code
     # to silence errors. Scans the COMMITTED BLOBs, not the working tree -- see
     # check_style.py's docstring for the two false-positive traps that caused.
-    $pyStyle = $null
-    foreach ($cand in @('python', 'python3', 'py')) {
-        $c = Get-Command $cand -ErrorAction SilentlyContinue
-        if ($c) { $pyStyle = $c.Source; break }
-    }
+    $pyStyle = Resolve-Python
     $styleScript = Join-Path $PSScriptRoot 'check_style.py'
     if (-not $pyStyle -or -not (Test-Path $styleScript)) {
         Write-Skip (M 'style_skip')
@@ -565,14 +638,21 @@ echo "SEC_OK"
             Write-Ok (M 'style_ok' @($nfiles))
             $warns = (($sout.Trim() -split "`n") | Where-Object { $_ -match '^\s*~ ' })
             if ($warns) { Write-Info (M 'style_warn' @([string]$warns.Count)) }
-        } else {
+        } elseif ($sout -match 'errors=(\d+)') {
+            # The checker RAN and reported a problem count.
+            $nerr = [int]$Matches[1]
             $first = (($sout.Trim() -split "`n") |
                       Where-Object { $_ -match '^\s*! ' } |
                       ForEach-Object { $_.Trim().Substring(2).Trim() } |
                       Select-Object -First 3) -join ' / '
-            $nerr = 0
-            if ($sout -match 'errors=(\d+)') { $nerr = [int]$Matches[1] }
             Write-Bad (M 'style_bad' @([string]$nerr, [string]$first))
+        } else {
+            # The checker did NOT run to completion -- it produced no `errors=N`
+            # summary. Reporting this as "代码规范有 0 处问题" was actively
+            # misleading: it named a violation count that does not exist and sent
+            # the reader hunting for a style problem. Name the real cause instead.
+            $tail = (($sout.Trim() -split "`n") | Select-Object -Last 4) -join ' / '
+            Write-Bad (M 'style_runfail' @([string]$scode, [string]$tail))
         }
     }
 
@@ -786,7 +866,7 @@ if ($script:Unverified.Count -gt 0) {
       Write-Host ('    ' + $skipTrace) -ForegroundColor DarkGray
   } elseif ($script:Skip -gt 0 -and -not $Strict) {
       Write-Host ''
-      Write-Host ('  ' + (M 'skipreason_required')) -ForegroundColor Yellow
+      Write-Host ('  ' + (M 'skipreason_required' @([string]$script:Skip))) -ForegroundColor Yellow
   }
 
 # Exit codes carry meaning, not just 0/1. A caller (a human, a script, a teammate)

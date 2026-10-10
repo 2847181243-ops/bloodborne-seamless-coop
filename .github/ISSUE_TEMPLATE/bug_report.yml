@@ -1,0 +1,86 @@
+name: 缺陷报告
+description: 报告一个可复现的缺陷（崩溃、状态不一致、存档损坏、复制漏洞等）
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > ⚠️ **安全漏洞不要用这个模板。** 见 `SECURITY.md` §8 ——
+        > 通过 Security Advisory 私有渠道，或用 `security-audit.yml` 模板。
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: Mod 版本 + 游戏版本 + 平台。三者都要，缺一无法复现。
+      placeholder: "Mod v0.1.0-modular / 游戏 1.09.1 / Windows x64"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 严重程度
+      options:
+        - 致命 —— 崩溃 / 存档损坏 / 物品复制 / 数据丢失
+        - 严重 —— 状态不一致 / 功能不可用 / 需要重启
+        - 普通 —— 表现异常但可继续游戏
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从启动开始，一步一行。**能稳定复现的步骤才有价值。**
+      placeholder: |
+        1. 启动 Host，创建 Session
+        2. 客机用房间码加入
+        3. 客机在 Lantern 处 Rest
+        4. 观察：Host 侧出现 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 引用任务书章节，不要只写"应该正常"。
+      placeholder: "任务书 §17：Lantern Rest 是世界级 Reset 点，应重置全部敌人但不重置客机个人进度。"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志
+      description: |
+        贴相关日志行。日志前缀见 `CONTRIBUTING.md` §12。
+        **不得包含任何隐私数据**（IP、账号 ID、硬件指纹等，见 `SECURITY.md` §2）。
+    validations:
+      required: false
+
+  - type: input
+    id: module
+    attributes:
+      label: 疑似模块
+      description: 任务书 §3.6 注册表里的模块 ID。不确定就留空。
+      placeholder: "mod.world_reset"
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影响范围
+      description: 影响哪些流程？是否可绕过？是否有数据损失风险？
+    validations:
+      required: true

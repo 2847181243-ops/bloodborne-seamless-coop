@@ -1,10 +1,99 @@
 # 贡献指南 / 多 AI 协作规约
 
-> 本文件是任务书 §38 / §48 / §50 / §52 的工程化落地。与任务书冲突时以任务书为准。
+> 本文件是任务书 §38 / §41 / §48 / §50 / §52 的工程化落地。与任务书冲突时以任务书为准。
+>
+> **2026 更新（v2.0）**：分支模型从 `main` + `agent/*` 扩展为
+> `main` ← `develop` ← `task/T-xxx-<slug>`。**新增内容见第 1.1 节**，
+> 第 1 节的 v1.0 划分保留作历史对照（`agent/*` 分支仍在使用）。
+> 权限矩阵的权威版本是 [`MAINTAINERS.md`](MAINTAINERS.md)，
+> AI 的行为规则见 [`AI_POLICY.md`](AI_POLICY.md)。
 
 ---
 
-## 1. 分支模型
+## 1.1 v2.0 分支模型与任务工作流
+
+> 依据：任务书 §41.1（任务卡）、§41.2（执行顺序）、§48-c（模块所有权）、
+> §48-d（分支约定）。**本节的权限细节以 `MAINTAINERS.md` 为准。**
+
+### 分支
+
+| 分支 | 用途 | 从哪切 | 提 PR 到 |
+|---|---|---|---|
+| `main` | 发布线 | — | — |
+| `develop` | 集成分支 | — | `main`（需 Owner 批准） |
+| `task/T-xxx-<slug>` | 一个任务卡 | `develop` | `develop` |
+| `fix/<topic>` | 修复 | `develop`（热修从 `main`） | `develop` |
+
+命名示例：
+
+```text
+task/T-000-governance-init
+task/T-004-interface-layer
+fix/quotepath-ci-gate
+```
+
+**提交信息格式**：`[T-xxx] type(scope): subject`
+
+### `develop` 的门禁与 `main` 完全相同
+
+两边的规则集都要求**同样的 6 项必需检查**、`required_linear_history`、
+`allowed_merge_methods=['squash']`。
+
+**为什么一样严**：`develop` 里的东西之后要进 `main`。若 `develop` 比 `main` 松，
+`main` 就成了唯一防线，**`develop` 会变成绕过门禁的通道**。
+
+### 一个任务卡的标准流程
+
+```text
+1. 建 Issue：[T-xxx] <任务名>
+2. 从 develop 切出 task/T-xxx-<slug>
+3. 实现 + 单元测试 + 契约测试 + 故障注入（如适用）
+4. 更新文档与 REFACTOR-REPORT.md
+5. 本地预检：preci.ps1 阶段 1 全绿（push 之前）
+6. 提交：[T-xxx] type(scope): subject
+7. 开 PR 到 develop，关联 Issue，填全 PR 模板
+8. 本地预检阶段 2 全绿（请求合并之前）
+9. 等 CI 6 项必需检查全绿
+10. squash merge 到 develop
+11. 更新 REFACTOR-REPORT.md
+```
+
+### `task/*` 分支没有 Agent 标识
+
+这是**有意设计**：v2.0 的所有权由**模块**决定（任务书 §48-c），
+不由分支名里的代号决定。
+
+迁移期 `branch-policy.yml` 用一份**联合写入范围**承接 `task/*`。
+它**不是最终的模块所有权划分**；把 15 个模块逐个写进 SCOPE 属于后续收紧工作。
+在收紧之前，任务卡 PR 的越界判定比最终形态宽。
+
+### `main → develop` 的回流
+
+任务书 §48-d 只描述了 `develop → main`。**反向的定义是**：
+
+```text
+从 main 开 fix/<topic> → PR 到 main（Owner 批准）→ 再从 main 开分支 PR 到 develop
+```
+
+**不要**"只在 develop 修好再一起进 main" —— 那会让 `main` 在一段时间里带着已知缺陷。
+
+### 层间串行约束（不得跳过）
+
+```text
+Layer 0 出口条件未通过 → 不得合并 Layer 1 模块
+Layer 1 出口条件未通过 → 不得合并 Layer 2 模块
+T-018 全局 Gate 未通过 → 不得进入 T-020
+```
+
+**为什么**：模块化架构的价值在于"故障不传播"。上层在底层出口未验证时就合入，
+底层的故障会立刻传播到上层，而排查时无法判断是底层没做好还是上层写错了 ——
+**故障边界的验证顺序被打乱，等于没有边界**。
+
+出口条件见任务书 §41.3。
+
+---
+
+## 1. 分支模型（v1.0，保留作历史对照）
 
 | 分支 | 所有者 | 用途 |
 |---|---|---|

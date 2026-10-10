@@ -52,7 +52,7 @@ jobs:
             #   CMakeLists.txt / .clang-format / .clang-tidy / docs/standards/
             #   它们是「项目级标准」，改一次影响所有 Agent 的模块，
             #   不能由某个 Agent 在自己的分支里单独改。
-            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ docs/standards/ docs/references/ .github/ .dsh/ tools/preci/ tools/bbcoop.py tools/setup-toolchain.ps1 docs/README.md README.md CONTRIBUTING.md SECURITY.md bloodborne.markdown .gitignore .gitattributes .editorconfig CMakeLists.txt .clang-format .clang-tidy"
+            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ docs/standards/ docs/references/ .github/ .dsh/ tools/preci/ tools/bbcoop.py tools/setup-toolchain.ps1 README.md CONTRIBUTING.md SECURITY.md MAINTAINERS.md AI_POLICY.md MIGRATION.md REFACTOR-REPORT.md docs/README.md bloodborne.markdown .gitignore .gitattributes .editorconfig CMakeLists.txt .clang-format .clang-tidy"
             # v2.0 的任务卡范围（迁移期）。
             # ⚠️ 这是一份**联合范围**，不是最终的模块所有权划分。
             # v2.0 §48-c 要求「一个模块 = 一个所有权单元」
@@ -101,14 +101,49 @@ jobs:
             fix/*)
               AGENT="task"
               ;;
+            sync/*)
+              # 同步分支：把 main 的状态原样搬到 develop。
+              # **不改任何人的文件**，所以写入范围检查对它不适用。
+              # 但"不适用"必须被验证，不能靠分支名相信 —— 见下面 AGENT=sync 的判定。
+              AGENT="sync"
+              ;;
             *)
-              echo "::error::PR 源分支必须命名为 lead/<topic>、agent/<agent>-<topic>、task/T-xxx-<slug> 或 fix/<topic>，当前为 '$HEAD_REF'。见任务书 §48-c / §48-d 与 CONTRIBUTING.md。"
+              echo "::error::PR 源分支必须命名为 lead/<topic>、agent/<agent>-<topic>、task/T-xxx-<slug>、fix/<topic> 或 sync/<topic>，当前为 '$HEAD_REF'。见任务书 §48-c / §48-d 与 CONTRIBUTING.md。"
               exit 1
               ;;
           esac
 
           if [[ -z "${SCOPE[$AGENT]:-}" ]]; then
-            echo "::error::未知范围标识 '$AGENT'。合法值为：a0 a1 a2 a3 a4 b1 b2 b3 b4 c1 c2 c3 c4 lead task"
+            echo "::error::未知范围标识 '$AGENT'。合法值为：a0 a1 a2 a3 a4 b1 b2 b3 b4 c1 c2 c3 c4 lead task sync"
+            exit 1
+          fi
+
+          # ── 同步分支：内容必须与 main 的树完全一致 ────────────────────────
+          #
+          # main → develop 的同步**不改任何人的文件**，只是把 main 的状态复制过去，
+          # 所以写入范围检查对这种情况不适用。
+          #
+          # 但"不适用"不能靠分支名来相信 —— 否则 sync/* 就成了免检通道。
+          # 这里验证**分支的树与 origin/main 完全相同**（即没有任何作者改动）：
+          #   一致   -> 放过，因为确实没有内容可归属
+          #   不一致 -> **失败**，而不是退回去做范围检查
+          # 这样豁免是被证明的，不是被信任的：一旦有人在 sync/* 上放了改动，
+          # 树就不再等于 main，门禁立刻失败。
+          if [[ "$AGENT" == "sync" ]]; then
+            git fetch --no-tags origin main >/dev/null 2>&1 || true
+            if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+              echo "::error::同步分支需要与 origin/main 比对，但取不到 origin/main。无法验证，按失败处理。"
+              exit 1
+            fi
+            if git diff --quiet origin/main HEAD; then
+              echo "✅ 同步分支 '$HEAD_REF' 的内容与 main 完全一致，没有任何作者改动。"
+              echo "   写入范围检查不适用 —— 没有内容需要归属。"
+              exit 0
+            fi
+            echo "::error::同步分支 '$HEAD_REF' 的内容与 main 不一致。"
+            echo "::error::同步分支只能原样搬运 main 的状态，不得携带任何作者改动。"
+            echo "::error::若你要改文件，请用 lead/、task/、fix/ 或 agent/ 分支。"
+            git -c core.quotepath=false diff --name-only origin/main HEAD | head -20 | sed 's/^/  与 main 不同：/'
             exit 1
           fi
 
