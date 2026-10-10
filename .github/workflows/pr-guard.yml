@@ -140,15 +140,44 @@ jobs:
                 ititle=$(printf '%s' "$ijson" | jq -r '.title' 2>/dev/null || true)
                 izstate=$(printf '%s' "$ijson" | jq -r '.state' 2>/dev/null || true)
                 echo "✅ 关联 Issue #$issue（$izstate）：${ititle:-（无标题）}"
+
+                # ── 这个绑定有没有意义 ──────────────────────────────────────
+                #
+                # 原来的检查只有两条：这一行存在、编号指向一个真实存在的 Issue。
+                # 结果实测：**最近 8 个 PR 里有 7 个全都引用同一个无关的 Issue #19**
+                # （那是 docs/security/ 改名授权的 Issue）——
+                # 因为只要编号真实就能过，于是它成了模板填充，绑定失去了意义。
+                #
+                # 现在加两条可判定的检查。它们不是新约定，是对既有约定的机器核对：
+                #
+                # 1. Issue 必须是 open。新的 PR 引用一个已关闭的 Issue，
+                #    通常说明这一行是填充而不是真实关联。
+                #
+                # 2. task/T-xxx-<slug> 分支引用的 Issue，标题里必须出现同一个 T-xxx。
+                #    任务书 §41.1 规定任务卡 Issue 的标题格式是「[T-xxx] <任务名>」，
+                #    所以两者本就该是同一个任务。
                 if [[ "$izstate" == "closed" ]]; then
-                  echo "::warning::关联的 Issue #$issue 已关闭 —— 若本 PR 与其无关，请改引用正确的 Issue。"
+                  echo "::error::关联的 Issue #$issue 已关闭。新的 PR 不应引用已关闭的 Issue —— 那通常说明这一行是模板填充。若确实需要引用旧 Issue 作为背景，请写在描述正文里；「关联 Issue」字段请填当前有效的那个。"
+                  failed=1
+                fi
+
+                if [[ -n "${GITHUB_HEAD_REF:-}" ]]; then
+                  head_tid=$(printf '%s' "$GITHUB_HEAD_REF" | grep -oE 'T-[0-9]{3}' | head -1 || true)
+                  if [[ -n "$head_tid" ]]; then
+                    if printf '%s' "$ititle" | grep -qE "$head_tid"; then
+                      echo "✅ 任务号一致：分支 $head_tid ↔ Issue 标题含 $head_tid"
+                    else
+                      echo "::error::分支是 '$GITHUB_HEAD_REF'（任务卡 $head_tid），但关联的 Issue #$issue 标题里没有 '$head_tid'。任务书 §41.1 规定任务卡 Issue 标题格式为「[T-xxx] <任务名>」，两者必须是同一个任务。当前 Issue 标题：${ititle:-（无标题）}"
+                      failed=1
+                    fi
+                  fi
                 fi
               fi
             fi
           fi
 
           if [[ $failed -eq 0 ]]; then
-            echo "✅ PR 描述校验通过（7 个必需章节非空 + 关联 Issue 有效）。"
+            echo "✅ PR 描述校验通过（8 个必需章节非空 + 关联 Issue 有效）。"
           fi
           exit $failed
 
