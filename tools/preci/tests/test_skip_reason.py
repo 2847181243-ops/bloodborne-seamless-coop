@@ -93,9 +93,28 @@ for name, extra, expect in CASES:
     print(f"  [{'OK ' if ok else 'BAD'}] {name:30} exit={rc} (期望 {expect})"
           + (f" 留痕={trace_ok}" if expect == 0 else ""))
     if not ok:
+        # Print preci's OWN failure lines, not just the lines that happen to mention
+        # the skip mechanism. Earlier this filter only matched "跳过理由 / 太短 / 套话 /
+        # 未验证", so when preci failed for an UNRELATED reason the test reported
+        # "exit=1 (期望 0)" with no explanation -- the actual cause (a stale branch-name
+        # rule, then a lost BOM) was invisible. A failing test must show why.
+        shown = 0
         for line in (out or "").splitlines():
-            if "跳过理由" in line or "太短" in line or "套话" in line or "未验证" in line:
-                print("        " + line.strip()[:150])
+            t = line.strip()
+            if not t:
+                continue
+            if ("[失败]" in t or "::error" in t or "跳过理由" in t
+                    or "太短" in t or "套话" in t or "未验证" in t
+                    or t.startswith("通过 ")):
+                print("        " + t[:165])
+                shown += 1
+                if shown >= 8:
+                    break
+        if shown == 0:
+            print("        （preci 没有输出可识别的失败行，原始输出尾部：）")
+            for line in (out or "").splitlines()[-6:]:
+                if line.strip():
+                    print("        " + line.strip()[:165])
 
 if os.path.exists(TRACE):
     os.remove(TRACE)
