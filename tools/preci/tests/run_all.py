@@ -61,6 +61,7 @@ import _paths as P  # noqa: E402
 SUITES = [
     ("test_preci_negative", "本地预检 · 负例矩阵", "windows", ()),
     ("test_skip_reason", "跳过留痕机制", "windows", ()),
+    ("test_ps1_bom", "PowerShell 文件 BOM", "windows", ()),
     ("test_re_spec", "逆向文档格式校验", None, ()),
     ("test_taskbook_name", "任务书文件名一致性", None, ()),
     ("test_ruleset_drift", "规则集漂移检查", None, ()),
