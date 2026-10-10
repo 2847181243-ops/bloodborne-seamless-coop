@@ -63,6 +63,7 @@ SUITES = [
     ("test_skip_reason", "跳过留痕机制", "windows", ()),
     ("test_re_spec", "逆向文档格式校验", None, ()),
     ("test_taskbook_name", "任务书文件名一致性", None, ()),
+    ("test_ruleset_drift", "规则集漂移检查", None, ()),
     ("test_build_std", "编译标准防削弱", None, ()),
     ("test_pg_strict", "PR 描述严格矩阵", None, ()),
     ("test_bp2", "分支与写入范围矩阵", None, ()),
