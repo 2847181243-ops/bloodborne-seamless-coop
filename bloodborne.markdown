@@ -1501,6 +1501,20 @@ Phase 15  Regression / Stability
 | T-019 | 分支保护与 CODEOWNERS | GitHub 配置 | `main` 必须 Owner 批准；`develop` 必须 CI 全绿 |
 | T-020 | Release `v0.1.0-modular` | Release Notes + Tag | 需 Human Owner 批准；发布包含自检命令 |
 
+#### 批次 G：可行性冲刺 M0（v2.1 新增，Human Owner 批准）
+
+> 目的：在继续铺框架卡之前，先把「bbport 运行时能不能碰」变成结论。
+> 依据：`docs/standards/项目复盘与风险清单.md`；R-1 结论见 `docs/re/bbport-runtime.md`。
+
+| ID | 任务 | 产出 | 验收 / kill criteria |
+|---|---|---|---|
+| M0-R1 | 环境与运行时侦察 | `docs/references/prior-art-bbport-runtime.md`（REF-007） | 给出目标 fork、Hook 机制与许可结论；无法确认的如实标「未核实」 |
+| M0-R2 | 最小 Hook / 内存读写证明 | 可运行的测试库 + 日志 + 复现命令 | 加载成功、稳定存活、能读到一处游戏状态；两周内做不到则触发重估 |
+| M0-R3 | 双进程 IPC 实测 | 延迟 / 丢事件报告 | 与 `06` §4 的量级对照，给出实测数字 |
+| M0-R4 | 双客户端最小同步 | 可复现演示 + 日志（游戏侧可先桩） | 2 客户端位置 + HP 同步 |
+
+> `docs/re/` 的写入当前受本地预检的跨所有权检查阻断（Issue #45）；修复前，M0 的运行时侦察产出放 `docs/references/`，游戏内 RE 事实待修复后入 `docs/re/`。
+
 #### 每个任务卡的标准工作流
 
 1. 创建 Issue：`[T-xxx] <任务名>`
@@ -1517,6 +1531,7 @@ Phase 15  Regression / Stability
 ### 41.2 v2.0 执行顺序与串行约束（v2.0 新增）
 
 ```text
+M0 可行性冲刺（R-1 → R-2 → R-3 → R-4；与框架链并行、优先）
 T-000 → T-001 → T-002 → T-003 → T-004 → T-021 → T-005 → T-006 → T-007
 → T-008 / T-009 / T-010 / T-011（并行）
 → T-012 / T-013（并行）
@@ -1528,6 +1543,7 @@ T-000 → T-001 → T-002 → T-003 → T-004 → T-021 → T-005 → T-006 → 
 
 - T-004 未完成前不得开始 T-005。
 - T-021 未完成前不得开始 T-005（Kernel 要先知道自己在给本地模块当宿主，还是给远程代理当宿主）。
+- M0-R2（最小 Hook 证明）未通过前，Layer 1 / Layer 2 模块实现不启动；由 Human Owner 依据 kill criteria 决定重估。
 - T-005 未完成前不得开始 T-007。
 - **Layer 0 出口条件未通过前，不得合并 Layer 1 模块。**
 - **Layer 1 出口条件未通过前，不得合并 Layer 2 模块。**
