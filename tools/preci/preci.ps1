@@ -834,8 +834,15 @@ if ($Stage -ge 2) {
             } else {
                 $pf = Join-Path $deadline "pr$Pr-body.md"
                 $lf = Join-Path $deadline "pr$Pr-labels.txt"
+                $bf = Join-Path $deadline "pr$Pr-base.txt"
                 if (Test-Path $pf) { $PrBody = $pf }
                 if (Test-Path $lf) { $labels = (Get-Content $lf -Raw); if ($null -eq $labels) { $labels = '' } }
+                # PR 的**真实**基分支。拉不到就退回 main（老行为），并在下面说明。
+                if (Test-Path $bf) {
+                    $PrBase = (Get-Content $bf -Raw)
+                    if ($null -eq $PrBase) { $PrBase = '' }
+                    $PrBase = $PrBase.Trim()
+                }
                 Write-Info (M 's2_fetched' @($Pr, '', [string]$labels))
             }
         }
@@ -854,7 +861,16 @@ if ($Stage -ge 2) {
         $gate = @()
         if ($jobs.ContainsKey('security-gate')) { $gate = @($jobs['security-gate']) }
 
-        $pre = "export LC_ALL=C.UTF-8`nexport BASE_REF=main`nexport GITHUB_REPOSITORY=$repoSlug`n"
+        # BASE_REF 必须与 CI 一致：GitHub 上传的是 `${{ github.base_ref }}`（PR 的真实基分支）。
+        # 这里原先写死 main，于是被抽出来的 pr-guard 身体会做 `git diff origin/main...HEAD` ——
+        # 在基于 develop 的分支上，那个 merge-base 已经过期，会列出**根本不属于本 PR** 的文件，
+        # 于是「写入范围」「安全敏感路径」「证据等级」全都在错误的文件集上判定：
+        # 表现为本地预检红、CI 绿，而且报的还是别人早就合并过的文件。
+        # 现在优先用拉取到的 PR 基分支；拿不到才退回 main（并在日志里说清楚）。
+        $baseRef = 'main'
+        if ($PrBase) { $baseRef = $PrBase }
+        Write-Info "BASE_REF=$baseRef（PR 基分支；CI 用 github.base_ref）"
+        $pre = "export LC_ALL=C.UTF-8`nexport BASE_REF=$baseRef`nexport GITHUB_REPOSITORY=$repoSlug`n"
         if ($token) { $pre += "export GITHUB_TOKEN=$token`n" }
         if ($labels) { $pre += "export LABELS='$labels'`n" }
         $bodyUnix = $PrBody -replace '\\', '/'

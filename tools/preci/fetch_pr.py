@@ -116,8 +116,16 @@ def main(argv):
         fh.write(data.get("body") or "")
     open(os.path.join(out_dir, f"pr{number}-labels.txt"), "w",
          encoding="utf-8", newline="\n").write(labels)
+    # The PR's REAL base branch. preci stage 2 used to hard-code BASE_REF=main, which
+    # made the extracted pr-guard bodies compute `git diff origin/main...HEAD` -- on a
+    # branch based on `develop` that lists files which are not part of the PR at all
+    # (the merge-base is stale), so the scope / sensitive-path checks fire on the wrong
+    # file set. CI passes `${{ github.base_ref }}`; this makes the local run match it.
+    base = (data.get("base") or {}).get("ref", "")
+    open(os.path.join(out_dir, f"pr{number}-base.txt"), "w",
+         encoding="utf-8", newline="\n").write(base)
     head = (data.get("head") or {}).get("ref", "")
-    print(f"OK http={http} head={head} labels=[{labels}] "
+    print(f"OK http={http} head={head} base={base} labels=[{labels}] "
           f"body={len(data.get('body') or '')} chars")
     return 0
 
