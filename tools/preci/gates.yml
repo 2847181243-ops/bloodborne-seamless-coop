@@ -60,7 +60,7 @@ stage1_pre_push:
     local: true
     what: 改动文件落在该 Agent 的 SCOPE 内；越界则必须能对应到 cross-agent Issue
     source: .github/workflows/branch-policy.yml
-    note: 本地只能判断「是否越界」；cross-agent 授权需阶段 2 才能确认
+    note: 阶段 1 用 -CrossAgentIssue <编号> 核对 cross-agent 标签；阶段 2 未提供时从 PR 描述读取第一个 Issue 编号（与 branch-policy.yml 同判据）
 
   - id: build
     name: 构建

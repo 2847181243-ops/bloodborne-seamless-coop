@@ -134,7 +134,7 @@ powershell -NoProfile -File tools/preci/preci.ps1 -Strict
 | # | 检查 | 对应的 CI 上下文 |
 |---|---|---|
 | 1 | 分支命名 `agent/<id>-<topic>` 或 `lead/<topic>` | 分支命名与写入范围 |
-| 2 | 写入范围（改动是否落在该 Agent 的 SCOPE 内） | 分支命名与写入范围 |
+| 2 | 写入范围（改动是否落在该 Agent 的 SCOPE 内）；越界时用 `-CrossAgentIssue <编号>` 核对 `cross-agent` 授权 | 分支命名与写入范围 |
 | 3 | 文件编码（UTF-8 / 无 BOM / 无 U+FFFD / 无 GBK 误码） | 文件编码与 CODEOWNERS 完整性 |
 | 4 | CODEOWNERS 完整性（规则不缩进、有所有者、必需条目齐全） | 文件编码与 CODEOWNERS 完整性 |
 | 5 | workflow `run body` 通过 `bash -n`；YAML 可解析、`needs` 目标存在、无 Pending 陷阱 | （CI 隐含） |
@@ -164,6 +164,7 @@ powershell -NoProfile -File tools/preci/preci.ps1 -Strict
 > 它拦的是"用注释代码掩盖报错"，不是正常的技术性注释。
 
 阶段 2（请求合并前）：PR 7 个必需章节非空、关联 Issue 真实存在（走 API）、
+**跨所有权授权**（未给 `-CrossAgentIssue` 时从 PR 描述读取第一个 Issue 编号，核对 `cross-agent` 标签）、
 验证等级恰好 1 个、证据等级（触及 `docs/re/` 或 `mod/core/` 时）、
 安全自检（触及敏感路径时全勾）、模块勾选、**安全审计门禁**、跨所有权授权。
 
