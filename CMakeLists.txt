@@ -116,6 +116,17 @@ else()
         $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>)
 endif()
 
+# ── 测试开关：必须**在第一个 add_subdirectory 之前** ─────────────────────────
+#
+# ⚠️ CMake 的一条静默陷阱（实测踩过）：`add_test()` 只有在它所属目录（或祖先目录）
+#    已经调过 `enable_testing()` 时才会被登记，**否则被无声丢弃** ——
+#    不报错、不警告，`ctest -N` 里就是少一条。
+#    原先 `enable_testing()` 写在 `add_subdirectory(src/kernel)` **之后**，
+#    于是 `src/kernel/CMakeLists.txt` 里注册的「宿主自检」测试压根没进测试表，
+#    CI 跑 `ctest` 时显示「全部通过」而那条断言从未执行。
+#    放在最前面，任何子目录都可以注册自己的测试。
+enable_testing()
+
 # ── 接口层（v1 冻结） ───────────────────────────────────────────────────────
 #
 # 接口层已经落地（T-004），所以这里**真的** add_subdirectory。
@@ -141,10 +152,14 @@ add_subdirectory(src/ipc)
 # 目标结构（第二个可执行目标、按 placement 分派模块、隔离断言）属 T-009。
 add_subdirectory(src/kernel)
 
-# ── 单元测试（T-021 起；T-012 把它们接进分层 CI）──────────────────────────────
-enable_testing()
+# ── 测试目标 ────────────────────────────────────────────────────────────────
+#
+# 单元测试在 tests/unit/ 下，集成测试（要跑宿主可执行文件的那类）在 tests/integration/ 下。
+# 完整的测试分层（unit / contract / fault-injection / module-isolation）由 T-012 铺开，
+# 这里只挂当前已有的。
 add_subdirectory(tests/unit/ipc)
 add_subdirectory(tests/unit/kernel)
+add_subdirectory(tests/integration)
 
 # ── 模块 ────────────────────────────────────────────────────────────────────
 #

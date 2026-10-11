@@ -40,3 +40,6 @@ target_link_libraries(bloodcoop-host PRIVATE bbcoop_warnings bloodcoop::kernel)
 # 版本串由构建注入，而不是在源码里写死 —— 自检 JSON 的 version 字段用它。
 target_compile_definitions(bloodcoop-host PRIVATE
     BBCOOP_VERSION_STRING="${PROJECT_VERSION}")
+
+# 宿主自检的断言注册在 tests/integration/CMakeLists.txt（产品目录不注册测试）。
+# 这里只导出可执行目标名，供那边引用。

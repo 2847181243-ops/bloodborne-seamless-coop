@@ -236,14 +236,33 @@ jobs:
 
           failed=0
           declare -A touched=()
+          # 安全 / 网络 / 存档 / 物品发放路径 → 必须填「安全自检」。
+          #
+          # ⚠️ 这份清单原先只有 v1.0 的 `mod/*` 路径，而 v2.0 的代码全在 `src/` 下 ——
+          #    结果是 `src/ipc/`（跨进程信任边界 + 共享内存映射 + 进程创建）
+          #    与所有 `src/modules/*` 的改动**不触发任何安全自检**。
+          #    这是「门禁看起来在、实际没拦」的典型：清单没跟着目录迁移走。
+          #    下面按任务书附录 A 的对照把 v1.0 的意图映射到 v2.0，并补上 v2.0 新增的 `src/ipc/`：
+          #      mod/network/*  → src/modules/{transport,discovery,relay}
+          #      mod/security/* → src/modules/{crypto,security_audit}
+          #      mod/session/*  → src/modules/{session_core,join_leave,replication_core}
+          #      mod/gameplay/* → src/modules/* 的 Layer 1/2
+          #      mod/core/*     → src/modules/game_hook
+          #      mod/platform/* → src/platform
+          #    为免漏项，v2.0 侧统一用 `src/modules/*` + `src/ipc/*` + `src/platform/*` 覆盖
+          #    （v1.0 的 `mod/gameplay/*` 本来就是整层覆盖，这个粒度是一致的）。
+          #    v1.0 的老路径**保留**：`agent/*` 分支仍在用，删掉会让它们的检查消失。
           for f in "${files[@]}"; do
             case "$f" in
-              mod/security/*|mod/network/*|relay/*|tools/audit/*|tools/pentest/*|\
-              mod/session/*|mod/replication/*|mod/gameplay/*|mod/core/*|mod/platform/*|config/*.yaml|config/*.yml|config/*.json)
+              mod/security/*|mod/network/*|mod/session/*|mod/replication/*|\
+              mod/gameplay/*|mod/core/*|mod/platform/*|relay/*|\
+              src/ipc/*|src/modules/*|src/platform/*|\
+              tools/audit/*|tools/pentest/*|\
+              config/*.yaml|config/*.yml|config/*.json)
                 touched[security]=1 ;;
             esac
             case "$f" in
-              docs/re/*|mod/core/*) touched[re]=1 ;;
+              docs/re/*|mod/core/*|src/modules/game_hook/*) touched[re]=1 ;;
             esac
           done
 
@@ -604,7 +623,7 @@ jobs:
           exit 0
 
   # ---------------------------------------------------------------------------
-  # 唯一必需检查（aggregate gate）
+  # 聚合 gate
   #
   # 为什么需要它 —— 依据 GitHub 官方文档（已逐条核实，非二手转述）：
   #   https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
@@ -614,14 +633,22 @@ jobs:
   #   2) 「**job** 被 if: 条件跳过 → 该 job 报 **Success**」
   #      → 所以路径判断要放 job 级，而不是 workflow 级 paths:。
   #   3) 「一个 job 依赖了失败的 job → 该 job 被跳过，**可能不阻断合并**」
-  #      → 所以聚合 job **必须**用 if: always()，否则恰好在最需要它的时刻失效。
+  #      → 所以聚合 job **必须**用 if: always()，否则恰好在最需要它的时刻失效；
+  #        也正因为这一条，**不能**靠「让某个必需 job 去 needs 某个门禁」来传递失败。
   #
-  # 存在的第二个理由：必需检查是**按上下文名**匹配的字符串契约。此前是 6 个名字，
-  # 任何一个 job 改名都会静默破坏规则集（表现为 PR 永久卡住），而且每加一个门禁都要
-  # 去改一次规则集。收敛成 1 个名字后，新增子门禁不再触碰规则集。
+  # ⚠️ 一处必须纠正的说法：本文件早先写过「收敛成 1 个必需检查，之后新增子门禁不再
+  #    触碰规则集」。**按现在的实现做不到，照做是放宽**：这个 gate 只聚合
+  #    template / security-gate / regression 三个 job，而另外四个门禁
+  #    （必需文件与目录结构、分支命名与写入范围、文件编码与 CODEOWNERS 完整性、
+  #    构建门禁）分别在 docs-structure.yml / branch-policy.yml / repo-integrity.yml /
+  #    build.yml 里 —— **needs 不能跨 workflow**，所以把规则集改成只 require `gate`
+  #    会一次性丢掉那四个门禁。
+  #    真要收敛成一个上下文，得先把那四项搬进同一个 workflow，或者让 gate 用 API
+  #    去读本次 SHA 的其他 check-runs 自行汇总；两者都不是「改一行名字」。
   #
+  # 现在 gate 的正当用途是**加法**：把它与那 6 个上下文一起设为必需，
+  # 就能让「回归矩阵」这个此前不阻断合并的 job 真正拦住人。
   # ⚠️ 顺序要求：GitHub 规定「必需检查必须在过去 7 天内成功运行过」才能被设为必需。
-  #    所以本 job 先落地并跑过一次，之后才把规则集改为只 require `gate`。
   # ---------------------------------------------------------------------------
   # ─────────────────────────────────────────────────────────────
   # 3) 回归矩阵
