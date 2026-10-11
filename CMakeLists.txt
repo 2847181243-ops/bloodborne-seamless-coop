@@ -161,23 +161,43 @@ add_subdirectory(tests/unit/ipc)
 add_subdirectory(tests/unit/kernel)
 add_subdirectory(tests/integration)
 
-# ── 模块 ────────────────────────────────────────────────────────────────────
+# ── 模块（T-007 骨架）───────────────────────────────────────────────────────
 #
-# 模块骨架与 Kernel 尚未实现（T-005 / T-007）。以下目录**故意**先不
-# add_subdirectory，否则 CMake 会因为目录为空而报错，构建门禁会红。
-# 每个模块落地时按下表加入，并**必须**链接 bbcoop_warnings：
+# 17 个模块骨架已落地（任务书 §3.6 的表是唯一来源：15 个骨架模块 + 2 个贯穿性）。
+# 每个目录里有 module.h / module.cpp / CMakeLists.txt / README.md / tests/contract_test.cpp。
 #
-#   src/kernel/               AI-00  加载 / 健康 / 熔断（T-005）
-#   src/platform/             AI-00  bbport 适配 / 启动器集成
-#   src/modules/*             各模块 见任务书 §3.6 注册表（T-007）
+# 骨架阶段对外一律返回 Error::Unavailable（§41.1 T-007 的验收），
+# 所以 `bloodcoop-host --self-test` 现在仍然是 degraded —— 模块「存在但不可用」，
+# 这正是空表被故意排除在 pass 之外时要表达的状态（09-kernel-host.md §8）。
 #
-# v1.0 的 `mod/` 路径（mod/core、mod/session、mod/network/... ）从未在本仓库
-# 存在过，因此没有"废弃目录"要标注；对应关系见任务书附录 A。
+# ⚠️ **目标结构（两个可执行目标、按 placement 分派、模块间非法链接的配置期断言）
+#    属 T-009**，不在这些 CMakeLists 里。这里只做「每个模块能独立编译 + 有自己的契约测试」。
+#    草稿分支里的 `bbcoop_add_module()` 是一个好的起点，但它承载的是 T-009 的职责，
+#    T-005 已经记录过「不原样搬过来」的理由。
+add_subdirectory(src/modules/transport)
+add_subdirectory(src/modules/discovery)
+add_subdirectory(src/modules/relay)
+add_subdirectory(src/modules/crypto)
+add_subdirectory(src/modules/session_core)
+add_subdirectory(src/modules/game_hook)
+add_subdirectory(src/modules/replication_core)
+add_subdirectory(src/modules/join_leave)
+add_subdirectory(src/modules/area_sync)
+add_subdirectory(src/modules/death)
+add_subdirectory(src/modules/world_reset)
+add_subdirectory(src/modules/enemy_boss)
+add_subdirectory(src/modules/loot)
+add_subdirectory(src/modules/pvp)
+add_subdirectory(src/modules/save)
+add_subdirectory(src/modules/observability)
+add_subdirectory(src/modules/security_audit)
+
+# 说明：`src/platform/`（bbport 适配 / 启动器集成）还没有代码，所以这里不 add_subdirectory
+# —— CMake 会因为目录为空而报错，构建门禁会红。它落地时按同样方式加入。
 #
-# 加入时写成：
-#     add_subdirectory(src/modules/transport)
-# 并在该模块的 CMakeLists.txt 里写：
-#     target_link_libraries(<target> PRIVATE bbcoop_warnings bloodcoop::interfaces)
+# 每个模块的 CMakeLists.txt 里都写了：
+#     target_link_libraries(bbcoop_mod_<名字> PRIVATE bbcoop_warnings PUBLIC bloodcoop::interfaces)
+# 唯一允许的依赖方向是 modules/* -> interfaces/（见 src/README.md）。
 #
 # 做「编译标准是否生效」的自检：配置阶段就断言 /WX 在位。
 # 这样一旦有人删掉它，配置阶段就会失败，而不是等到某天发现警告变多了。
