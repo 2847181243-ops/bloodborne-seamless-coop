@@ -118,6 +118,25 @@ def main(argv):
                 else:
                     notes.append(f"{fn}: '{t}' path-filtered but backs no required check -> fine")
 
+        # A required check must be produced on PRs to BOTH protected branches.
+        # main and develop have the same required-check set (MAINTAINERS.md §5);
+        # if a workflow only triggers on main, every PR to develop waits forever
+        # for a check that will never be reported (measured: PR #49 -> blocked).
+        if fn in REQUIRED_BACKING:
+            pr_conf = on_conf.get("pull_request") if isinstance(on_conf, dict) else None
+            if "pull_request" not in trigs:
+                problems.append(
+                    f"! {fn}: backs a required check but has no pull_request trigger")
+            elif isinstance(pr_conf, dict) and "branches" in pr_conf:
+                br = pr_conf["branches"]
+                br = [br] if isinstance(br, str) else list(br or [])
+                missing = [x for x in ("main", "develop") if x not in br]
+                if missing:
+                    problems.append(
+                        f"! {fn}: backs a required check but pull_request.branches "
+                        f"misses {', '.join(missing)} -- PRs to that branch would wait "
+                        f"forever for the check")
+
         print(f"  [OK  ] {fn:22} jobs={len(jobs)} triggers={trigs}")
 
     # Cross-check: the contexts gates.yml claims are required must exist as job names
