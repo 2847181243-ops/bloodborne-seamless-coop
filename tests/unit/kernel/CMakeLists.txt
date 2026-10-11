@@ -24,5 +24,16 @@ foreach(_src IN LISTS KERNEL_TEST_SOURCES)
         ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_CURRENT_SOURCE_DIR}/../../fixtures)
     target_link_libraries(${_name} PRIVATE bbcoop_warnings bloodcoop::kernel)
-    add_test(NAME ${_name} COMMAND ${_name})
 endforeach()
+
+# ⚠️ 测试注册**逐条写明**，不要用循环生成。
+#    为什么：CI 的构建门禁里有一条断言核对「`add_test` 声明几条 vs ctest 注册几条」，
+#    用来抓「add_test 写在 enable_testing() 之前被 CMake 静默丢弃」那个坑。
+#    它的前提是「一条 add_test( 语句 = 一条注册」—— 用循环生成时，
+#    源码里只有 1 条语句却注册了 5 条，断言会把**正常的构建**判成「有测试被静默丢弃」。
+#    这不是断言的缺陷，而是「可数性」这个前提必须被满足：注册就必须逐条可数。
+add_test(NAME load_test COMMAND load_test)
+add_test(NAME fault_isolation_test COMMAND fault_isolation_test)
+add_test(NAME circuit_breaker_test COMMAND circuit_breaker_test)
+add_test(NAME health_aggregation_test COMMAND health_aggregation_test)
+add_test(NAME host_services_test COMMAND host_services_test)
