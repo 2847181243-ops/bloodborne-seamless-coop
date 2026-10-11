@@ -1463,6 +1463,7 @@ Phase 15  Regression / Stability
 | ID | 任务 | 产出 | 验收 |
 |---|---|---|---|
 | T-004 | 接口层 | `imodule.h`、`itransport.h`、`isession.h`、`igameplay.h`、`module_context.h`、`version.h`、`errors.h` | 可独立编译，不依赖模块头文件，标注 v1 冻结 |
+| T-021 | IPC 层（v2.0 新增；Human Owner 裁定采用进程外模块后补，见 Issue #35） | IPC 传输（共享内存环形缓冲 + 控制通道）；`ITransport` / `ISession` 的代理与桩；可跨边界类型清单；辅助进程生命周期（启动、崩溃检测、终止、重启、协议版本握手） | 进程外模块能被 Kernel 加载、巡检、熔断；kill 辅助进程后游戏进程存活且 Layer 0 全部 `Unavailable`；跨边界调用次数不与「实体数 × 帧数」成正比 |
 | T-005 | Kernel / Module Host | 模块加载、注册表、事件总线、健康巡检、熔断、`bloodcoop-host` | `init` 失败不阻断其他模块；`tick` 超时熔断；`--self-test` 输出 JSON |
 | T-006 | Kernel 单元测试 | 3 个测试夹具 + 4 个单元测试 | 覆盖加载、故障隔离、熔断、健康聚合 |
 
@@ -1500,6 +1501,20 @@ Phase 15  Regression / Stability
 | T-019 | 分支保护与 CODEOWNERS | GitHub 配置 | `main` 必须 Owner 批准；`develop` 必须 CI 全绿 |
 | T-020 | Release `v0.1.0-modular` | Release Notes + Tag | 需 Human Owner 批准；发布包含自检命令 |
 
+#### 批次 G：可行性冲刺 M0（v2.1 新增，Human Owner 批准）
+
+> 目的：在继续铺框架卡之前，先把「bbport 运行时能不能碰」变成结论。
+> 依据：`docs/standards/项目复盘与风险清单.md`；R-1 结论见 `docs/re/bbport-runtime.md`。
+
+| ID | 任务 | 产出 | 验收 / kill criteria |
+|---|---|---|---|
+| M0-R1 | 环境与运行时侦察 | `docs/references/prior-art-bbport-runtime.md`（REF-007） | 给出目标 fork、Hook 机制与许可结论；无法确认的如实标「未核实」 |
+| M0-R2 | 最小 Hook / 内存读写证明 | 可运行的测试库 + 日志 + 复现命令 | 加载成功、稳定存活、能读到一处游戏状态；两周内做不到则触发重估 |
+| M0-R3 | 双进程 IPC 实测 | 延迟 / 丢事件报告 | 与 `06` §4 的量级对照，给出实测数字 |
+| M0-R4 | 双客户端最小同步 | 可复现演示 + 日志（游戏侧可先桩） | 2 客户端位置 + HP 同步 |
+
+> `docs/re/` 的写入当前受本地预检的跨所有权检查阻断（Issue #45）；修复前，M0 的运行时侦察产出放 `docs/references/`，游戏内 RE 事实待修复后入 `docs/re/`。
+
 #### 每个任务卡的标准工作流
 
 1. 创建 Issue：`[T-xxx] <任务名>`
@@ -1516,7 +1531,8 @@ Phase 15  Regression / Stability
 ### 41.2 v2.0 执行顺序与串行约束（v2.0 新增）
 
 ```text
-T-000 → T-001 → T-002 → T-003 → T-004 → T-005 → T-006 → T-007
+M0 可行性冲刺（R-1 → R-2 → R-3 → R-4；与框架链并行、优先）
+T-000 → T-001 → T-002 → T-003 → T-004 → T-021 → T-005 → T-006 → T-007
 → T-008 / T-009 / T-010 / T-011（并行）
 → T-012 / T-013（并行）
 → T-014 / T-015 / T-016 / T-017（并行）
@@ -1526,6 +1542,8 @@ T-000 → T-001 → T-002 → T-003 → T-004 → T-005 → T-006 → T-007
 **串行约束**
 
 - T-004 未完成前不得开始 T-005。
+- T-021 未完成前不得开始 T-005（Kernel 要先知道自己在给本地模块当宿主，还是给远程代理当宿主）。
+- M0-R2（最小 Hook 证明）未通过前，Layer 1 / Layer 2 模块实现不启动；由 Human Owner 依据 kill criteria 决定重估。
 - T-005 未完成前不得开始 T-007。
 - **Layer 0 出口条件未通过前，不得合并 Layer 1 模块。**
 - **Layer 1 出口条件未通过前，不得合并 Layer 2 模块。**

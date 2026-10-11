@@ -110,6 +110,9 @@ def body(sections_ok=True, issue_line="- 关联 Issue：#5", verify="Compile Ver
         "是否存在兼容性风险": "无",
         # 作者也可能把等级写在正文里；门禁对此做两级回退
         "当前验证等级": level_text if level_text is not None else "（无）",
+        # 门禁只检查本节存在且非空；质量判不了，靠写的人。
+        # 夹具里给一句真实内容，正面用例才有意义。
+        "决策与不确定记录": ("1. 无\n2. 无\n3. 无 —— 本次由 test_pg_strict 覆盖确认真做对了"),
     }
     if evidence is not None:
         s["证据等级（涉及逆向结论时必填）"] = f"- [x] {evidence}"
@@ -137,7 +140,11 @@ CASES = [
      "desc", "ok", 1, "未填写真实编号"),
     ("desc: no issue field", ["docs/x.md"], body(issue_line=""), "desc", "ok", 1, "缺少「关联 Issue」字段"),
     ("desc: issue API failure distinguishable", ["docs/x.md"], body(), "desc", "fail", 1, "读取 Issue"),
-    ("desc: closed issue warns only", ["docs/x.md"], body(), "desc", "ok", 0, "已关闭",
+    # 已关闭的 Issue 由「警告」改为「错误」。
+    # 起因是实测：最近 8 个 PR 里有 7 个都引用同一个已关闭且无关的 Issue #19 ——
+    # 只要编号真实就能过，于是「关联 Issue」成了模板填充，绑定失去意义。
+    # 一个新的 PR 引用已关闭的 Issue，通常就说明那是填充而不是真实关联。
+    ("desc: closed issue rejected", ["docs/x.md"], body(), "desc", "ok", 1, "已关闭",
      {"GH_SHIM_STATE": "closed"}),
 
     ("machine: baseline ok (docs only)", ["docs/x.md"], body(), "machine", "ok", 0, "机器可验证项全部通过"),
