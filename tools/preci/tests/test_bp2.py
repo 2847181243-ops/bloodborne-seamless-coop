@@ -73,26 +73,29 @@ open(GATE, "w", encoding="utf-8", newline="\n").write(
     'export PATH="%s:$PATH"\n' % SHIM + body + "\n")
 
 CASES = [
-    # name, extra out-of-scope files, PR body, gh mode, labels, expect
-    ("all in scope", [], "body", "ok", "", 0),
+    # name, extra out-of-scope files, PR body, gh mode, labels, expect, head_ref
+    ("all in scope", [], "body", "ok", "", 0, "lead/test"),
     ("out-of-scope + cross-agent issue", ["docs/security/x.md"],
-     "为什么改\n\n关联 Issue：#5", "ok", "cross-agent", 0),
+     "为什么改\n\n关联 Issue：#5", "ok", "cross-agent", 0, "lead/test"),
     ("out-of-scope + issue lacking label", ["docs/security/x.md"],
-     "关联 Issue：#5", "ok", "bug", 1),
+     "关联 Issue：#5", "ok", "bug", 1, "lead/test"),
     ("out-of-scope + no issue in body", ["docs/security/x.md"],
-     "没有引用任何 issue", "ok", "cross-agent", 1),
-    ("out-of-scope + empty body", ["docs/security/x.md"], "", "ok", "cross-agent", 1),
+     "没有引用任何 issue", "ok", "cross-agent", 1, "lead/test"),
+    ("out-of-scope + empty body", ["docs/security/x.md"], "", "ok", "cross-agent", 1, "lead/test"),
     ("out-of-scope + issues/N form", ["docs/security/x.md"],
-     "见 https://github.com/o/r/issues/7", "ok", "cross-agent", 0),
+     "见 https://github.com/o/r/issues/7", "ok", "cross-agent", 0, "lead/test"),
     # NEW: API failure must be reported as an API problem, not "label missing"
     ("API failure (403) distinct from label", ["docs/security/x.md"],
-     "关联 Issue：#5", "fail", "", 1),
-    ("in-scope only, body irrelevant", [".github/x.yml"], "whatever", "ok", "", 0),
+     "关联 Issue：#5", "fail", "", 1, "lead/test"),
+    ("in-scope only, body irrelevant", [".github/x.yml"], "whatever", "ok", "", 0, "lead/test"),
+    # sync/*: 前提是"树 == origin/main"，不走范围检查；两半都要测（豁免不能变成绕过通道）
+    ("sync/* tree == main", [], "body", "ok", "", 0, "sync/develop"),
+    ("sync/* tree != main must fail", ["sneaky.md"], "body", "ok", "", 1, "sync/develop"),
 ]
 
 passed = failed = 0
 fails = []
-for name, extra, body_text, mode, labels, expect in CASES:
+for name, extra, body_text, mode, labels, expect, branch in CASES:
     work = tempfile.mkdtemp(prefix="bp2-")
     try:
         def run(args, cwd=work):
@@ -106,7 +109,7 @@ for name, extra, body_text, mode, labels, expect in CASES:
         run([REAL_GIT, "add", "-A"])
         run([REAL_GIT, "commit", "-qm", "base"])
         run([REAL_GIT, "update-ref", "refs/remotes/origin/main", "HEAD"])
-        run([REAL_GIT, "checkout", "-q", "-b", "lead/test"])
+        run([REAL_GIT, "checkout", "-q", "-b", branch])
         for rel in extra:
             p = os.path.join(work, rel)
             os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -115,7 +118,7 @@ for name, extra, body_text, mode, labels, expect in CASES:
         run([REAL_GIT, "commit", "-qm", "case"])
 
         env = dict(os.environ)
-        env.update({"HEAD_REF": "lead/test", "BASE_REF": "main", "PRBODY": body_text,
+        env.update({"HEAD_REF": branch, "BASE_REF": "main", "PRBODY": body_text,
                     "GH_SHIM_MODE": mode, "GH_SHIM_LABELS": labels,
                     "GITHUB_REPOSITORY": "owner/repo"})
         r = subprocess.run([BASH, "-e", "-o", "pipefail", GATE], cwd=work,
