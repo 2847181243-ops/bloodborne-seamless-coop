@@ -196,6 +196,13 @@ public:
     // init 的结果要看状态里的 initialized / lastError —— 与配置驱动的路径一致。
     // 失败时不接管，调用方仍然持有这个 unique_ptr。
     //
+    // ⚠️ **`IModule::id()` 返回的字符串必须在 Kernel 的整个生命周期内保持有效。**
+    //    Kernel 只存这个指针，**不复制字符串**（定长槽位 + noexcept 路径不分配内存），
+    //    所以返回指向局部缓冲的指针会让注册表指向已经失效的内存 ——
+    //    症状是「一批模块莫名其妙被判成重复 ID」（因为它们的 id 指针指向同一块被复用的栈内存）。
+    //    这是冻结接口里 `id()` 返回 `const char*` 而不是 `std::string` 的代价；
+    //    实现模块时用字符串字面量或静态存储。T-006 的 load_test 里有一处实测记录。
+    //
     // 为什么这条路径存在：故障注入（T-013）与单元测试需要在手上留一个可观察的
     // 模块实例；从配置驱动的路径创建的实例归 Kernel 所有，测试看不到它。
     Error addModule(std::unique_ptr<IModule> module, bool required = false) noexcept;

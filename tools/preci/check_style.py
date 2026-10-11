@@ -28,6 +28,7 @@ Severity model:
 """
 import argparse
 import fnmatch
+import importlib.util
 import io
 import json
 import os
@@ -384,6 +385,38 @@ def check_constraint_severity(tree, errors, warns):
                       f"级别是分类，理由才是判据。"))
 
 
+def check_kernel_scope(tree, errors):
+    """Kernel 不得实现任何游戏机制（任务书 §3.6 原则 1）。
+
+    判据在 tools/preci/check_kernel_scope.py 里（T-006 落地，01-kernel.md §5 指派的），
+    它对 `src/kernel/**` 做启发式扫描：剥掉注释与字符串后查游戏机制的标识符。
+
+    这里只是把它挂进 preci 这份清单，好让它在 push 前就跑到 ——
+    否则那条验收还是「人工审计」，而人工审计不会每次都做。
+    """
+    # 按**路径**加载同目录的模块，而不是裸 `import check_kernel_scope`：
+    # 后者只在「把本文件当脚本、sys.path[0]=tools/preci」时成立；
+    # 而套件（test_build_std.py 之类）是用 importlib 按路径加载本文件的，
+    # 那时 tools/preci 不在 sys.path 上，裸 import 会 ModuleNotFoundError。
+    here = os.path.dirname(os.path.abspath(__file__))
+    cks_path = os.path.join(here, "check_kernel_scope.py")
+    spec = importlib.util.spec_from_file_location("check_kernel_scope", cks_path)
+    cks = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cks)
+
+    files = []
+    for name in sorted(tree):
+        if not name.startswith(cks.SCAN_PREFIX):
+            continue
+        try:
+            files.append((name, tree[name].decode("utf-8")))
+        except UnicodeDecodeError:
+            continue
+    if not files:
+        return
+    cks.check(files, errors)
+
+
 def check_build_standards(tree, errors):
     """Refuse silent removal of the compiler standards.
 
@@ -488,6 +521,7 @@ def main():
     check_build_standards(tree, errors)
     check_constraint_severity(tree, errors, warns)
     check_re_docs(tree, errors, warns)
+    check_kernel_scope(tree, errors)
 
     if args.json:
         print(json.dumps({
