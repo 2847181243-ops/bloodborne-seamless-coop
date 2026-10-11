@@ -167,6 +167,23 @@ stage2_pre_merge:
 
 # ── CI 必需状态检查上下文（必须与 job name: 逐字节一致）─────────────────────
 # 规则：宁可少，不可错。禁止把「按路径/事件过滤」的 job 设为必需 —— 会永久 Pending。
+#
+# `gate` 是 pr-guard.yml 里的聚合 job，覆盖 template / security-gate / 回归矩阵
+# （ubuntu + windows）。把它设为必需，才会让**回归矩阵真正阻断合并** ——
+# 在此之前矩阵红了 PR 依然可以合并（表现为 mergeable_state=unstable），
+# 也就是说「门禁自己在不在生效」这件事没人拦。
+#
+# 为什么用聚合 job 而不用两个矩阵上下文：
+#   * 矩阵在 PR 事件上总是运行（pr-guard.yml 的 on: pull_request 没有路径过滤），
+#     所以不存在「永久 Pending」的风险；
+#   * gate 用 if: always() 汇总上游结论，任一失败/取消即失败 —— 这正是任务书
+#     §38 要的「失败不静默」。
+#
+# ⚠️ 2026-10 实测纠正过一处误解：pr-guard.yml 里曾写「收敛成 1 个必需检查」。
+#    按现在的实现**做不到，照做是放宽** —— gate 只聚合 pr-guard 内部的 3 个 job，
+#    而下面另外 4 个门禁分别在 docs-structure / branch-policy / repo-integrity /
+#    build 四个 workflow 里，needs 不能跨 workflow。所以这里用**加法**：
+#    6 个具体上下文 + gate。
 required_status_checks:
   - 必需文件与目录结构
   - 分支命名与写入范围
@@ -174,6 +191,7 @@ required_status_checks:
   - 安全审计门禁（一票否决）
   - 文件编码与 CODEOWNERS 完整性
   - 构建门禁（Windows MSVC x64）
+  - gate
 
 # 明确禁止设为必需的上下文（附原因），供后续维护者防止误加：
 never_require:
