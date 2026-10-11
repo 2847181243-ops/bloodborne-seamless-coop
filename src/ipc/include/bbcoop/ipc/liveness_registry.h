@@ -32,6 +32,10 @@ public:
     // 记录一次心跳（辅助侧写入的等价物；测试用假实现走这里）。
     void noteHeartbeat(ChannelId channel) noexcept;
 
+    // 心跳停滞判定（由 ChannelWatchdog 驱动）：把通道标为 stale。
+    // 只从 starting / ready 迁移；幂等（重复标记不改变状态、不计日志）。
+    void markStale(ChannelId channel) noexcept;
+
     // 通道关闭事件（操作系统信号 / 测试注入）。回调**只触发一次**；
     // 与 requestTerminate 的先后顺序不影响计数（幂等，08-ipc.md D-7）。
     void onChannelClosed(ChannelId channel) noexcept;

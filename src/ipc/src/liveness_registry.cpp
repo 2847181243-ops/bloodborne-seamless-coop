@@ -73,6 +73,19 @@ void LivenessRegistry::noteHeartbeat(ChannelId channel) noexcept {
     }
 }
 
+void LivenessRegistry::markStale(ChannelId channel) noexcept {
+    Entry* e = find(channel);
+    if (e == nullptr) {
+        return;
+    }
+    // 只有已经跑起来（ready）的通道才谈得上「卡住」：starting 阶段的超时是
+    // 就绪超时（启动失败），走另一条路。已被判终止 / 已消失的通道也不回退。
+    // 状态机因此只往前走：starting -> ready -> stale -> terminating -> gone。
+    if (e->state == ChannelState::Ready) {
+        e->state = ChannelState::Stale;
+    }
+}
+
 void LivenessRegistry::onChannelClosed(ChannelId channel) noexcept {
     Entry* e = find(channel);
     if (e == nullptr) {

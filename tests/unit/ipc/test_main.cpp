@@ -19,6 +19,7 @@
 #include "bbcoop/ipc/protocol.h"
 #include "bbcoop/ipc/ring_buffer.h"
 #include "bbcoop/ipc/supervisor.h"
+#include "test_channel.h"
 #include "test_framework.h"
 
 namespace {
@@ -32,6 +33,7 @@ using bbcoop::ipc::LogSink;
 using bbcoop::ipc::MutableByteSpan;
 using bbcoop::ipc::RestartPolicy;
 using bbcoop::ipc::RestartSupervisor;
+using bbcoop::ipc::RingBufferState;
 using bbcoop::ipc::SpscRingBuffer;
 
 std::vector<std::byte> bytes(const char* text) {
@@ -45,7 +47,8 @@ std::vector<std::byte> bytes(const char* text) {
 
 void testRingBufferRoundTrip() {
     std::array<std::byte, 64> storage{};
-    SpscRingBuffer ring(MutableByteSpan(storage.data(), storage.size()));
+    RingBufferState state;
+    SpscRingBuffer ring(state, MutableByteSpan(storage.data(), storage.size()));
     CHECK(ring.empty());
 
     const auto a = bytes("alpha");
@@ -66,7 +69,8 @@ void testRingBufferRoundTrip() {
 
 void testRingBufferDropsAndNeverBlocks() {
     std::array<std::byte, 32> storage{};
-    SpscRingBuffer ring(MutableByteSpan(storage.data(), storage.size()));
+    RingBufferState state;
+    SpscRingBuffer ring(state, MutableByteSpan(storage.data(), storage.size()));
     const auto r = bytes("0123456789");  // 10 + 4 字节头
 
     std::size_t accepted = 0;
@@ -87,7 +91,8 @@ void testRingBufferDropsAndNeverBlocks() {
 
 void testRingBufferWrapAround() {
     std::array<std::byte, 24> storage{};
-    SpscRingBuffer ring(MutableByteSpan(storage.data(), storage.size()));
+    RingBufferState state;
+    SpscRingBuffer ring(state, MutableByteSpan(storage.data(), storage.size()));
     const auto r = bytes("wrap");
     std::array<std::byte, 8> out{};
     for (int round = 0; round < 20; ++round) {
@@ -96,6 +101,26 @@ void testRingBufferWrapAround() {
         CHECK_EQ(n, r.size());
     }
     CHECK_EQ(ring.droppedCount(), static_cast<std::size_t>(0));
+}
+
+// 两段拼成一条记录：跨边界调用的「记录头 + 负载」就是这样过环的（零拷贝）。
+void testRingBufferTwoPartRecord() {
+    std::array<std::byte, 64> storage{};
+    RingBufferState state;
+    SpscRingBuffer ring(state, MutableByteSpan(storage.data(), storage.size()));
+
+    const auto head = bytes("HEADER");
+    const auto body = bytes("payload");
+    CHECK(ring.tryPushParts(ByteSpan(head.data(), head.size()),
+                            ByteSpan(body.data(), body.size())));
+
+    // 一条记录，不是两条。
+    std::array<std::byte, 32> out{};
+    const std::size_t n = ring.tryPop(MutableByteSpan(out.data(), out.size()));
+    CHECK_EQ(n, head.size() + body.size());
+    CHECK_EQ(std::memcmp(out.data(), "HEADERpayload", n), 0);
+    CHECK(ring.empty());
+    CHECK_EQ(ring.tryPop(MutableByteSpan(out.data(), out.size())), static_cast<std::size_t>(0));
 }
 
 void testLivenessIdempotency() {
@@ -218,10 +243,17 @@ void testLogSinkOversizeAudit() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    // 本可执行文件同时充当「辅助进程」：跨进程用例用真实进程边界验证通道
+    // （见 test_channel.cpp）。参数是共享内存映射名。
+    if (argc >= 3 && std::strcmp(argv[1], "--aux-child") == 0) {
+        return bbcoop::test::runAuxChild(argv[2]);
+    }
+
     testRingBufferRoundTrip();
     testRingBufferDropsAndNeverBlocks();
     testRingBufferWrapAround();
+    testRingBufferTwoPartRecord();
     testLivenessIdempotency();
     testLivenessTableFull();
     testSupervisorBackoff();
@@ -229,6 +261,8 @@ int main() {
     testSupervisorStartLimit();
     testLogSinkDurability();
     testLogSinkOversizeAudit();
+    bbcoop::test::runChannelTests();
+    bbcoop::test::runCrossProcessChannelTests();
 
     std::printf("checks=%d failures=%d\n", bbcoop::test::g_checks, bbcoop::test::g_failures);
     return (bbcoop::test::g_failures == 0) ? 0 : 1;

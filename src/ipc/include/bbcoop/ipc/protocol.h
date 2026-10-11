@@ -72,7 +72,27 @@ enum class MessageKind : std::uint32_t {
     LogRecord = 5,
     Stop = 6,
     Kill = 7,
+    // 代理 -> 桩的调用（payload[0] 是 CallOp，其余是参数）。
+    Call = 8,
 };
+
+// 代理/桩之间的调用编号（08-ipc.md D-4：调用方仍拿接口指针，代理实现细节）。
+enum class CallOp : std::uint8_t {
+    TransportConnected = 1,
+    TransportSend = 2,
+    TransportRtt = 3,
+    SessionActive = 4,
+    SessionMemberCount = 5,
+    SessionIsHost = 6,
+};
+
+// Call / CallResult 记录的负载布局（暂定：08-ipc.md §4.1 只给了字段名，
+// 具体编码由本实现固化，改它要同时改 call_dispatch.h）。
+//   Call       : [0..3] call_id（小端 u32）  [4] CallOp  [5..] 参数
+//   CallResult : [0..3] call_id（小端 u32）  [4] Error   [5..] 结果字节
+inline constexpr std::size_t kCallIdBytes = 4;
+inline constexpr std::size_t kCallPrefixBytes = kCallIdBytes + 1;
+inline constexpr std::size_t kCallResultPrefixBytes = kCallIdBytes + 1;
 
 constexpr const char* to_string(ChannelState s) noexcept {
     switch (s) {

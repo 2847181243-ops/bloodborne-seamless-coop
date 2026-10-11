@@ -151,27 +151,31 @@ class IAuxLiveness {
 
 ## 8. 验收（可判定）
 
-| # | 判据 | 对应 |
-|---|---|---|
-| A-1 | `kill` 辅助进程 → 游戏进程存活、自检报告 Layer 0 全 `Unavailable`，且 `unavailable_reason=channel_closed` | 06 §5.4；T-013 |
-| A-2 | 冻结心跳 → 判定为 `heartbeat_stale`，触发终止请求，且**只触发一次**（幂等） | D-7/D-9 |
-| A-3 | 跨边界调用次数不与「实体数 × 帧数」成正比（统计计数断言） | 06 §4.3 |
-| A-4 | 通道不可用时，代理调用**立即**返回 `Unavailable`（不阻塞 tick） | 07 §1.4 |
-| A-5 | 版本不匹配 → 拒绝启动（fail-closed），日志给出两侧版本 | D-12 |
-| A-6 | 队列满时：`diagnostic` 丢并计数，`audit` 不丢（或进入显式失败态） | D-11 |
-| A-7 | 辅助进程崩溃前记录的事件能在 host 日志中找到（证明日志走了 IPC） | 06 §5.4 |
+「本轮」一列说明 T-021 分支上已经**用什么证据**覆盖到哪一步；`部分` 表示只覆盖了判据的一部分，
+剩余部分靠后续任务（不假装已完成）。
+
+| # | 判据 | 对应 | 本轮 |
+|---|---|---|---|
+| A-1 | `kill` 辅助进程 → 游戏进程存活、自检报告 Layer 0 全 `Unavailable`，且 `unavailable_reason=channel_closed` | 06 §5.4；T-013 | **部分**：真实子进程被 `terminate` → 宿主存活、`waitForExit` 判定退出、关闭回调只触发一次。Layer 0 全量自检属 T-013 |
+| A-2 | 冻结心跳 → 判定为 `heartbeat_stale`，触发终止请求，且**只触发一次**（幂等） | D-7/D-9 | **是**：`ChannelWatchdog` + `LivenessRegistry`，含武装门槛与只报一次 |
+| A-3 | 跨边界调用次数不与「实体数 × 帧数」成正比（统计计数断言） | 06 §4.3 | **部分**：`sentRecords()` / `refusedRecords()` 计数已就位；性能断言要等 T-013 的负载模型 |
+| A-4 | 通道不可用时，代理调用**立即**返回 `Unavailable`（不阻塞 tick） | 07 §1.4 | **是**：代理在不可用/环满两条路径上都立刻返回，且不产生跨边界调用 |
+| A-5 | 版本不匹配 → 拒绝启动（fail-closed），日志给出两侧版本 | D-12 | **部分**：`LayoutMismatch` 与握手 `InvalidArgument` 已覆盖；「日志给出两侧版本」要等 Kernel 日志设施（T-005） |
+| A-6 | 队列满时：`diagnostic` 丢并计数，`audit` 不丢（或进入显式失败态） | D-11 | **是**（`LogSink` 层）；环满时通道一律返回「未送达」，由调用方按耐久性决定处理方式 |
+| A-7 | 辅助进程崩溃前记录的事件能在 host 日志中找到（证明日志走了 IPC） | 06 §5.4 | **部分**：子进程上线即发一条 `audit` 记录，宿主侧确实收到；「宿主落盘」属 T-005 |
 
 ## 9. 待定 / 未核实
 
 | 项 | 现状 | 归属 |
 |---|---|---|
-| 环形缓冲容量与背压参数 | 无数据 | T-021 / T-013 |
-| 卡住阈值 N（暂定 3000ms）与心跳节奏 | 任务书未给 | T-021（本规格给关系：节奏 ≤ N/3） |
-| 就绪超时 | 任务书未给 | T-021 |
-| 优雅停止宽限期（暂定 1000ms） | 任务书未给 | T-021 |
-| 重启退避/上限的具体数值 | 任务书未给 | T-021 |
+| 环形缓冲容量与背压参数 | T-021 取**暂定** 16 KiB / 不排队；无实测数据 | T-013 实测 |
+| 卡住阈值 N（暂定 3000ms）与心跳节奏 | 任务书未给；T-021 已按「节奏 ≤ N/3」实现（`kHeartbeatStaleMs` / `kHeartbeatIntervalMs`） | 数值待 T-013 |
+| 就绪超时 | 任务书未给；T-021 取**暂定** 5000ms | 数值待实测 |
+| 优雅停止宽限期（暂定 1000ms） | 任务书未给 | 数值待实测 |
+| 重启退避/上限的具体数值 | 任务书未给（T-021 已实现策略，数值全在 `RestartPolicy` 里标暂定） | 数值待实测 |
 | 运行时插件入口（`BB_GAME_LIB`）在 Windows 端口的落地 | 设计输入见 `scripts/m0/r2_probe/LOADER-PATCH.md`，未实测 | M0-R2 |
 | 跨边界调用的性能上限 | 任务书 §3.5 只给总量 | T-013 实测 |
+| 映射名可猜 + 同用户进程可打开 | 目前只做到 DACL 一层（见 §11「未落地」） | T-009 启动器 |
 
 ## 10. 依据
 
@@ -183,17 +187,54 @@ class IAuxLiveness {
 
 ## 11. 实现进度（随 `task/T-021-ipc` 更新）
 
-已落地（本分支；本地用仓库自带 zig 构建并运行，181 项检查通过）：
+已落地（本分支；本地用仓库自带 zig 构建并运行，**365 项检查通过**）：
 
 | 文件 | 内容 |
 |---|---|
-| `src/ipc/include/bbcoop/ipc/protocol.h` | 协议版本、N/宽限期暂定常量、`ChannelId`、状态/原因/耐久性枚举、`RecordHeader` |
-| `src/ipc/include/bbcoop/ipc/ring_buffer.h` + `.cpp` | SPSC 环形缓冲：满时丢并计数、不阻塞、不分配 |
+| `src/ipc/include/bbcoop/ipc/protocol.h` | 协议版本、N/宽限期暂定常量、`ChannelId`、状态/原因/耐久性枚举、`RecordHeader`、`Call`/`CallResult` 负载布局常量 |
+| `src/ipc/include/bbcoop/ipc/ring_buffer.h` + `.cpp` | SPSC 环形缓冲：满时丢并计数、不阻塞、不分配；**状态外置**（`RingBufferState`）以便放进共享内存；`tryPushParts` 支持「头 + 负载」零拷贝入队 |
 | `src/ipc/include/bbcoop/ipc/aux_liveness.h` | Kernel 与 IPC 的 `IAuxLiveness` |
-| `src/ipc/include/bbcoop/ipc/liveness_registry.h` + `.cpp` | 通道关闭幂等、终止请求幂等、心跳本地读 |
+| `src/ipc/include/bbcoop/ipc/liveness_registry.h` + `.cpp` | 通道关闭幂等、终止请求幂等、心跳本地读、`markStale` 状态迁移 |
 | `src/ipc/include/bbcoop/ipc/supervisor.h` + `.cpp` | 重启监督：指数退避 + 封顶 + 抖动 + 稳定窗口重置 + 启动上限 |
+| `src/ipc/include/bbcoop/ipc/watchdog.h` + `.cpp` | 时间判据：就绪超时（判启动失败）与心跳停滞（武装后才判「卡住」），同一结论只报一次 |
 | `src/ipc/include/bbcoop/ipc/log_sink.h` + `.cpp` | 日志队列：诊断可丢并计数、审计不静默丢 |
-| `tests/unit/ipc/` | 单元测试（181 项检查） |
+| `src/ipc/include/bbcoop/ipc/wire.h` | 跨边界最小线格式（小端定长：u32/u64/bool） |
+| `src/ipc/include/bbcoop/ipc/channel.h` | 代理用的 `ICallChannel`（不阻塞、不分配；带上耐久性与 call_id） |
+| `src/ipc/include/bbcoop/ipc/caches.h` | 跨边界状态的本地缓存（D-2 的落点） |
+| `src/ipc/include/bbcoop/ipc/proxy.h` + `.cpp` | `ITransport` / `ISession` 的游戏进程侧代理：查询走缓存、发送不等待 |
+| `src/ipc/include/bbcoop/ipc/stub.h` + `.cpp` | 辅助侧桩：把调用翻回真实模块，输出用调用方缓冲（零分配） |
+| `src/ipc/include/bbcoop/ipc/call_dispatch.h` + `.cpp` | 调用分发 + `CallResult` 编解码（call_id 关联） |
+| `src/ipc/include/bbcoop/ipc/shm_layout.h` | 共享内存布局：握手块 ×2、心跳计数、关闭标志、两个方向的环状态与存储；创建者初始化、打开者校验 |
+| `src/ipc/include/bbcoop/ipc/shm_mapping.h` + `src/shm_mapping_win32.cpp` | 命名映射：创建/打开 + 布局校验 fail-closed；DACL 只放行所有者 / System / Administrators |
+| `src/ipc/include/bbcoop/ipc/shared_channel.h` + `.cpp` | `SharedChannel`：握手、收发、心跳、关闭，两侧共用一套逻辑 |
+| `src/ipc/include/bbcoop/ipc/process_host.h` + `src/process_host_win32.cpp` | 进程监督：挂起创建 → 入作业对象 → 恢复；整组回收；失败降级为单进程并如实报告 |
+| `tests/unit/ipc/` | 单元 + 跨进程测试（341 项检查） |
 
-**未落地**（继续在本分支追加）：真实共享内存映射与控制通道、`ITransport`/`ISession` 的代理与桩、
-进程创建/作业对象平台适配、端到端 `--self-test` 接线。
+**T-021 定下的实现决策**（规格留给实现的部分）：
+
+| 决策 | 取值 | 依据 |
+|---|---|---|
+| 背压策略 | 环满**不排队**：`trySendCall` 返回 false → 代理立刻返回 `Unavailable` | §4.2 允许二选一；排队会引入延迟与额外状态，先取可判定的一侧 |
+| 单条记录容量 | `kMaxRecordBytes = kRingCapacity - 4`（暂定 16 KiB 环） | 待 T-013 实测 |
+| 调用编号 | `Call` / `CallResult` 负载前 4 字节是单调 `call_id`，第 5 字节是 `CallOp` / `Error` | §4.1 只给字段名，编码由实现固化（`protocol.h` 常量 + `call_dispatch.h`） |
+| 心跳传输 | **只走共享内存计数**，不发消息 | §5.2「每 tick 读共享内存计数（零 IPC 成本）」 |
+| 已存在的同名映射 | 创建者**拒绝接管**（`already_exists`），不初始化对方布局 | 接管会抹掉对端的握手与环形状态 |
+| 布局标识 | 映射头写魔数 / 布局版本 / 布局尺寸，三者任一不符即拒绝打开 | D-12 fail-closed |
+
+**未落地**（继续在本分支或后续任务）：
+
+- 端到端 `--self-test` 接线（T-014）：本分支的跨进程用例只证明「通道 + 代理 + 桩 + 进程监督」这条链，
+  不等于产品形态的自检；
+- 受限令牌 + 不可猜名字：目前映射名可猜，访问控制只到 DACL 一层（见 `shm_mapping.h` 文件头），
+  完整加固随启动器（T-009）落地；
+- 跨边界调用的真实性能数据（T-013）。
+
+### 11.1 验证到什么程度
+
+| 等级 | 状态 | 证据 |
+|---|---|---|
+| Compile Verified | 是（本地 zig/clang；MSVC 由 CI 判定） | `cmake --build` 零警告（`-Wall -Wextra -Werror -Wpedantic`） |
+| Runtime Verified | 是 | `bbcoop_ipc_tests` 365 项检查通过；含**真实子进程 + 真实命名映射**的跨进程用例 |
+| Multiplayer Verified | **否** | 需要 2P 实测（任务书 §39），与本任务无关 |
+| 破坏性反向验证 | 是（4 个负例，均已复现失败） | ①握手不置 `ready` → 通道不可用类断言全红；②`open` 跳过布局校验 → A-5 断言红；③辅助子进程不参与 → 跨进程用例红；④去掉卡住判定的武装门槛 → 「没观察到心跳变化就不判卡住」断言红 |
+
