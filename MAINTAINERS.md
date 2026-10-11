@@ -167,7 +167,9 @@
 ### 5.2 `main → develop` 的回流
 
 任务书 §48-d 描述了 `develop → main`，没有描述反向。
-**当前做法**：从 `main` 开分支提 PR 到 `develop`（即同步），不要直接改 `develop`。
+**当前做法**（2026-10 实测修正，Human Owner 批准）：`sync/<topic>` 分支**基于 `develop` 切出**，
+再把树重置为 `main`（`git read-tree -u --reset origin/main` 后提交）；从 `main` 直接切出会在
+`develop` 有独立历史时产生合并冲突（PR #48 实测 `dirty`）。不要直接改 `develop`，不要 force push。
 
 热修流程：
 
