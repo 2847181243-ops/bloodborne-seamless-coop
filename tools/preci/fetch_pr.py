@@ -14,8 +14,11 @@ where it is trivially testable, and the caller only has to read two files.
 
 Usage:
   python fetch_pr.py <pr-number> <out-dir>
+  python fetch_pr.py --issue <issue-number> <out-dir>
 
-Writes <out-dir>/pr<N>-body.md and <out-dir>/pr<N>-labels.txt
+Writes <out-dir>/pr<N>-body.md + <out-dir>/pr<N>-labels.txt for PRs, and
+<out-dir>/issue<N>-labels.txt for issues. The issue mode exists so pre-CI can
+check the `cross-agent` label exactly like branch-policy.yml does.
 Exit codes: 0 ok, 3 no token / unusable response (caller should SKIP), 1 hard error.
 
 Token resolution order: GITHUB_TOKEN, GH_TOKEN, then a couple of conventional
@@ -49,10 +52,18 @@ def token():
 
 def main(argv):
     if len(argv) < 3:
-        print("usage: fetch_pr.py <pr-number> <out-dir>")
+        print("usage: fetch_pr.py <pr-number> <out-dir> | fetch_pr.py --issue <n> <out-dir>")
         return 1
-    pr = argv[1]
-    out_dir = argv[2]
+    issue_mode = argv[1] == "--issue"
+    if issue_mode:
+        if len(argv) < 4:
+            print("usage: fetch_pr.py --issue <issue-number> <out-dir>")
+            return 1
+        number = argv[2]
+        out_dir = argv[3]
+    else:
+        number = argv[1]
+        out_dir = argv[2]
     os.makedirs(out_dir, exist_ok=True)
 
     tok = token()
@@ -64,8 +75,9 @@ def main(argv):
                         "System32", "curl.exe")
     if not os.path.isfile(curl):
         curl = "curl"
-    tmp = os.path.join(out_dir, f"pr{pr}.json")
-    url = f"https://api.github.com/repos/{REPO}/pulls/{pr}"
+    tmp = os.path.join(out_dir, f"{'issue' if issue_mode else 'pr'}{number}.json")
+    kind = "issues" if issue_mode else "pulls"
+    url = f"https://api.github.com/repos/{REPO}/{kind}/{number}"
     cmd = [curl, "-sS", "--max-time", "45"]
     if API_IP:
         cmd += ["--resolve", f"api.github.com:443:{API_IP}"]
@@ -85,15 +97,24 @@ def main(argv):
     except json.JSONDecodeError as e:
         print(f"SKIP: response is not JSON (http={http}): {str(e)[:160]}")
         return 3
-    if "body" not in data:
+    if "labels" not in data:
         print(f"SKIP: unexpected response (http={http}): {str(data)[:200]}")
         return 3
 
-    body_path = os.path.join(out_dir, f"pr{pr}-body.md")
+    labels = ",".join(l.get("name", "") for l in (data.get("labels") or []))
+    if issue_mode:
+        open(os.path.join(out_dir, f"issue{number}-labels.txt"), "w",
+             encoding="utf-8", newline="\n").write(labels)
+        print(f"OK http={http} issue={number} labels=[{labels}]")
+        return 0
+
+    if "body" not in data:
+        print(f"SKIP: unexpected response (http={http}): {str(data)[:200]}")
+        return 3
+    body_path = os.path.join(out_dir, f"pr{number}-body.md")
     with open(body_path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(data.get("body") or "")
-    labels = ",".join(l.get("name", "") for l in (data.get("labels") or []))
-    open(os.path.join(out_dir, f"pr{pr}-labels.txt"), "w",
+    open(os.path.join(out_dir, f"pr{number}-labels.txt"), "w",
          encoding="utf-8", newline="\n").write(labels)
     head = (data.get("head") or {}).get("ref", "")
     print(f"OK http={http} head={head} labels=[{labels}] "
