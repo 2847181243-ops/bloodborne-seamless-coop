@@ -6,6 +6,10 @@ add_executable(bbcoop_ipc_tests
     test_main.cpp
     test_channel.cpp)
 
+# 断言框架在 tests/unit/ 下（T-005 起两个套件共用一份）。
+target_include_directories(bbcoop_ipc_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
 target_link_libraries(bbcoop_ipc_tests
     PRIVATE bbcoop_warnings bloodcoop::ipc)
 

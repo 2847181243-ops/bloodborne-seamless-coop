@@ -135,9 +135,16 @@ add_subdirectory(src/interfaces)
 # 依赖方向：ipc -> interfaces（单向）；Kernel（T-005）会依赖 ipc。
 add_subdirectory(src/ipc)
 
+# ── Kernel / Module Host（T-005）──────────────────────────────────────────────
+#
+# 依赖方向：kernel -> ipc -> interfaces（单向）。
+# 目标结构（第二个可执行目标、按 placement 分派模块、隔离断言）属 T-009。
+add_subdirectory(src/kernel)
+
 # ── 单元测试（T-021 起；T-012 把它们接进分层 CI）──────────────────────────────
 enable_testing()
 add_subdirectory(tests/unit/ipc)
+add_subdirectory(tests/unit/kernel)
 
 # ── 模块 ────────────────────────────────────────────────────────────────────
 #
