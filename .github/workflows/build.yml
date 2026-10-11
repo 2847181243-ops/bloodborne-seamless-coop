@@ -14,8 +14,10 @@ on:
       - 'lead/**'
       - 'task/**'
       - 'lead/**'
+  # develop 与 main 有同一套必需检查（MAINTAINERS.md §5）。
+  # 只写 main 时，develop 的 PR 会永久缺「构建门禁（Windows MSVC x64）」这个必需检查。
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
