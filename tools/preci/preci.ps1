@@ -62,6 +62,10 @@ param(
     [string]$Base = 'origin/main',
     [string]$PrBody,
     [int]$Pr = 0,
+    # Cross-ownership authorization (Issue number carrying the `cross-agent` label).
+    # Stage 1 requires it when files fall outside the branch scope; stage 2 reads it
+    # from the PR body when omitted. Same judgement as branch-policy.yml.
+    [int]$CrossAgentIssue = 0,
     [switch]$Strict,
     # Treat SKIP as acceptable and return 0. The default is the opposite on
     # purpose: "did not check" must never look like "checked and fine", so a SKIP
@@ -256,6 +260,63 @@ function Get-ScopeTable {
     return $t
 }
 
+function Get-FirstIssueNumber {
+    # Mirrors branch-policy.yml: the first `#<n>` or `issues/<n>` reference in the
+    # PR body is the cross-ownership authorization candidate.
+    param([string]$BodyFile)
+    if (-not $BodyFile -or -not (Test-Path $BodyFile)) { return 0 }
+    $text = [IO.File]::ReadAllText($BodyFile)
+    $m = [regex]::Match($text, '(#[0-9]+|issues/[0-9]+)')
+    if (-not $m.Success) { return 0 }
+    $d = [regex]::Match($m.Value, '[0-9]+').Value
+    return [int]$d
+}
+
+function Get-IssueLabels {
+    # Returns @{ ok = $true/false; labels = '...'; error = '...' }.
+    # The real lookup lives in fetch_pr.py (--issue) for the same reason stage 2
+    # delegates the PR fetch: PowerShell 5.1 object marshalling is unreliable.
+    param([int]$Issue)
+    $res = @{ ok = $false; labels = ''; error = '' }
+    # Test seam for the negative matrix; mirrors fetch_pr.py's PRCI_API_IP override.
+    # Never set in normal runs.
+    if ($env:PRCI_LABELS_FILE) {
+        if (-not (Test-Path $env:PRCI_LABELS_FILE)) {
+            $res.error = "PRCI_LABELS_FILE not found: $env:PRCI_LABELS_FILE"
+            return $res
+        }
+        $raw = [IO.File]::ReadAllText($env:PRCI_LABELS_FILE)
+        $res.labels = (($raw -split '[,\r\n]+') | Where-Object { $_ -ne '' }) -join ','
+        $res.ok = $true
+        return $res
+    }
+    $pyExe = $null
+    foreach ($cand in @('python', 'python3', 'py')) {
+        $c = Get-Command $cand -ErrorAction SilentlyContinue
+        if ($c) { $pyExe = $c.Source; break }
+    }
+    $fetcher = Join-Path $PSScriptRoot 'fetch_pr.py'
+    if (-not $pyExe -or -not (Test-Path $fetcher)) {
+        $res.error = 'python or fetch_pr.py unavailable'
+        return $res
+    }
+    $outDir = Join-Path ([IO.Path]::GetTempPath()) 'preci-fetch-issue'
+    $fout = (& $pyExe $fetcher '--issue' ([string]$Issue) $outDir 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        $res.error = (($fout.Trim() -split "`n") | Select-Object -Last 1)
+        return $res
+    }
+    $lf = Join-Path $outDir "issue$Issue-labels.txt"
+    if (-not (Test-Path $lf)) {
+        $res.error = "labels file missing: $lf"
+        return $res
+    }
+    $raw = [IO.File]::ReadAllText($lf)
+    $res.labels = (($raw -split ',') | Where-Object { $_ -ne '' }) -join ','
+    $res.ok = $true
+    return $res
+}
+
 function Get-RunBodies {
     # Extract `run: |` bodies (10-space de-indent) tagged by job name.
     param([string]$Path)
@@ -416,10 +477,51 @@ if ($Stage -ge 1) {
             if ($oob.Count -eq 0) {
                 Write-Ok (M 'scope_ok' @($changed.Count, $agent))
             } else {
-                Write-Bad (M 'scope_oob' @($oob.Count, $agent, ($oob -join ', ')))
-                Write-Info (M 'scope_note1')
-                Write-Info (M 'scope_note2')
-                Write-Info (M 'scope_allowed' @($agent, ($allowed -join ' ')))
+                # Cross-ownership authorization -- same judgement as branch-policy.yml:
+                # out-of-scope files are allowed only when the referenced Issue carries
+                # the `cross-agent` label. Stage 1 needs -CrossAgentIssue <n>; stage 2
+                # falls back to the first Issue reference in the PR body.
+                $xa = $CrossAgentIssue
+                if ($xa -le 0 -and $Stage -ge 2) {
+                    $bodyPath = $PrBody
+                    if (-not $bodyPath -and $Pr -gt 0) {
+                        # Rare path (only when files are out of scope): fetch the PR
+                        # body once just to learn which Issue was referenced.
+                        $pyExe = $null
+                        foreach ($cand in @('python', 'python3', 'py')) {
+                            $c = Get-Command $cand -ErrorAction SilentlyContinue
+                            if ($c) { $pyExe = $c.Source; break }
+                        }
+                        $fetcher = Join-Path $PSScriptRoot 'fetch_pr.py'
+                        if ($pyExe -and (Test-Path $fetcher)) {
+                            $dir = Join-Path ([IO.Path]::GetTempPath()) 'preci-fetch'
+                            & $pyExe $fetcher ([string]$Pr) $dir 2>&1 | Out-Null
+                            $candPath = Join-Path $dir "pr$Pr-body.md"
+                            if (Test-Path $candPath) { $bodyPath = $candPath }
+                        }
+                    }
+                    $xa = Get-FirstIssueNumber -BodyFile $bodyPath
+                    if ($xa -le 0) { Write-Info (M 'scope_xa_no_issue') }
+                }
+                if ($xa -gt 0) {
+                    Write-Info (M 'scope_xa_lookup' @($xa))
+                    $r = Get-IssueLabels -Issue $xa
+                    if (-not $r.ok) {
+                        Write-Bad (M 'scope_xa_fetch_fail' @($xa, [string]$r.error))
+                        Write-Info (M 'scope_xa_files' @($oob.Count, ($oob -join ', ')))
+                    } elseif (",$($r.labels)," -like '*,cross-agent,*') {
+                        Write-Ok (M 'scope_xa_ok' @($xa))
+                        Write-Info (M 'scope_xa_files' @($oob.Count, ($oob -join ', ')))
+                    } else {
+                        Write-Bad (M 'scope_xa_no_label' @($xa))
+                        Write-Info (M 'scope_xa_files' @($oob.Count, ($oob -join ', ')))
+                    }
+                } else {
+                    Write-Bad (M 'scope_xa_empty' @($oob.Count))
+                    Write-Info (M 'scope_note1')
+                    Write-Info (M 'scope_note2')
+                    Write-Info (M 'scope_allowed' @($agent, ($allowed -join ' ')))
+                }
             }
         }
     }

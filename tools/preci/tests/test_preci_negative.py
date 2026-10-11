@@ -67,6 +67,57 @@ def scenario(name, branch, mutate, expect_substr, stage=1):
         shutil.rmtree(d, ignore_errors=True)
 
 
+def scenario_xa(name, labels, arg, expect_code, expect_substr, stage=1, pr_body=None):
+    """Cross-ownership authorization cases.
+
+    The issue-label lookup is replaced by PRCI_LABELS_FILE so the matrix never
+    needs the network: `labels` is the label list, None simulates a read failure.
+    ``expect_code=None`` means "only assert the message" (used for stage 2, where
+    the other stage-2 checks legitimately fail on the synthetic PR body).
+    """
+    d = fresh_clone()
+    try:
+        run([GIT, "checkout", "-q", "-b", "lead/xa"], d)
+        # 用 markdown 制造越界：它不触发样式检查，能单独验证授权逻辑
+        os.makedirs(os.path.join(d, "docs", "security"), exist_ok=True)
+        open(os.path.join(d, "docs", "security", "x.md"), "w",
+             encoding="utf-8", newline="\n").write("x\n")
+        run([GIT, "add", "-A"], d)
+        run([GIT, "commit", "-qm", "case"], d)
+        env = dict(os.environ)
+        if labels is None:
+            env["PRCI_LABELS_FILE"] = os.path.join(d, "missing-labels.txt")
+        else:
+            lf = os.path.join(d, "labels.txt")
+            open(lf, "w", encoding="utf-8", newline="\n").write(labels + "\n")
+            env["PRCI_LABELS_FILE"] = lf
+        cmd = [PS, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", PRECI,
+               "-Repo", d, "-Stage", str(stage), "-Base", "origin/main", "-AllowSkip"]
+        if arg is not None:
+            cmd += ["-CrossAgentIssue", str(arg)]
+        if pr_body is not None:
+            bp = os.path.join(d, "pr-body.md")
+            open(bp, "w", encoding="utf-8", newline="\n").write(pr_body)
+            cmd += ["-PrBody", bp]
+        # env 必须显式传入：run() 包装器不接收 env，早先的版本因此把
+        # PRCI_LABELS_FILE 丢掉了，真去查了线上 Issue（还恰好带 cross-agent 标签）
+        r = subprocess.run(cmd, cwd=d, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", env=env)
+        out = (r.stdout or "") + (r.stderr or "")
+        caught = expect_substr in out
+        code_ok = (expect_code is None) or (r.returncode == expect_code)
+        ok = caught and code_ok
+        print(f"  [{'PASS' if ok else 'FAIL'}] {name:46} exit={r.returncode} "
+              f"expect={expect_code} caught={caught}")
+        if not ok:
+            snippet = "\n".join([l for l in out.splitlines()
+                                  if ("cross-agent" in l or "授权" in l or "越界" in l)][:6])
+            print("        " + snippet.replace("\n", "\n        "))
+        return ok
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def m_scope(d):
     os.makedirs(os.path.join(d, "mod", "security"), exist_ok=True)
     open(os.path.join(d, "mod", "security", "hack.cpp"), "w").write("x\n")
@@ -169,11 +220,31 @@ CASES = [
     ("源文件缺文件头注释", "agent/a1-nohdr", m_no_file_header, "missing file header"),
 ]
 
+XA_CASES = [
+    ("跨所有权：cross-agent 授权通过", "bug,cross-agent", 5, 0,
+     "已由 Issue #5（cross-agent）授权"),
+    ("跨所有权：标签不符必须失败", "bug", 5, 1, "未带 cross-agent 标签"),
+    ("跨所有权：标签读取失败（非标签问题）", None, 5, 1, "读取 Issue #5 的标签失败"),
+    ("跨所有权：阶段 1 未提供 Issue", "cross-agent", None, 1, "-CrossAgentIssue"),
+    ("跨所有权：阶段 2 从 PR 描述授权通过", "cross-agent", None, None,
+     "已由 Issue #5（cross-agent）授权", 2, "改了什么\n\n关联 Issue：#5\n"),
+    ("跨所有权：阶段 2 引用无标签 Issue", "bug", None, None,
+     "未带 cross-agent 标签", 2, "关联 Issue：#5\n"),
+]
+
 print("=== pre-CI 负例矩阵（每个用例注入一个缺陷，必须被抓到）===")
 passed = 0
 for name, br, fn, exp in CASES:
     if scenario(name, br, fn, exp):
         passed += 1
 
-print(f"\ncaught {passed}/{len(CASES)}")
-sys.exit(0 if passed == len(CASES) else 1)
+print("\n=== 跨所有权授权（cross-agent）===")
+xa_passed = 0
+for case in XA_CASES:
+    if scenario_xa(*case):
+        xa_passed += 1
+
+total = len(CASES) + len(XA_CASES)
+got = passed + xa_passed
+print(f"\ncaught {got}/{total}")
+sys.exit(0 if got == total else 1)
