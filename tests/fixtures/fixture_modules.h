@@ -81,6 +81,47 @@ enum class TickMode : std::uint8_t {
     StallThenOk = 3,         // 前 N 次卡过阈值，之后恢复正常
 };
 
+// 自报 ID 与模块表里写的**不一致**的模块。
+// 用途：验收「表与实例 ID 不一致时拒绝该项」——表将来是生成的，
+// 名字对不上说明生成物或命名约定坏了，不能让「表里一个名字、跑起来另一个」静默通过。
+class WrongIdModule final : public IModule {
+public:
+    explicit WrongIdModule(const char* reportedId) noexcept : m_id(reportedId) {}
+
+    const char* id() const noexcept override { return m_id; }
+    Error init(ModuleContext&) noexcept override {
+        ++initCalls;  // 不该被调用：这一项应当在 init 之前就被拒绝
+        return Error::Ok;
+    }
+    Error tick(std::uint64_t) noexcept override { return Error::Ok; }
+    void shutdown() noexcept override { ++shutdownCalls; }
+    Health health() const noexcept override { return Health::Ok; }
+
+    std::uint32_t initCalls = 0;
+    std::uint32_t shutdownCalls = 0;
+
+private:
+    const char* m_id = nullptr;
+};
+
+// 工厂返回 nullptr 的夹具：验收「创建失败按本模块不可用处理，不影响其他模块」。
+inline IModule* createNullModule() noexcept { return nullptr; }
+
+// 工厂返回「自报 ID 与表里不一致」的实例。
+inline IModule* createWrongIdModule() noexcept {
+    return new (std::nothrow) WrongIdModule("mod.actually-something-else");
+}
+
+// 三个标准夹具的工厂。ModuleDescriptor 要的是 `IModule* (*)() noexcept`，
+// 返回派生类指针的函数**不能**隐式转成它（返回类型不同），所以这里显式返回 IModule*。
+// 需要观察夹具自己计数（tickCalls 等）的用例直接 new 具体类型，不走工厂。
+inline IModule* createNormalModule() noexcept {
+    return new (std::nothrow) NormalModule("mod.normal");
+}
+inline IModule* createInitFailModule() noexcept {
+    return new (std::nothrow) InitFailModule("mod.initfail", Error::Internal);
+}
+
 // 可以注入「慢 tick」与「一直失败」的模块。
 class TickFixtureModule final : public IModule {
 public:

@@ -255,7 +255,7 @@ T-012 的「禁用非核心模块后自检退出码 0」在框架期就恒真 �
 | A-7 | `--self-test` 输出可解析 JSON；required 失败退出码非 0 | **是**（JSON 由单测校验 + 人工跑宿主核对） |
 | A-8 | 事件总线：同步投递、重入被拒绝并计数、订阅上限 | **是** |
 | A-9 | 日志：级别过滤与计数 | **是**（K-7 的队列/分类/落盘**未实现**，见 §7、§10） |
-| A-10 | Kernel 内无业务逻辑（无死亡/世界重置/敌人/掉落/PvP/存档机制） | **人工审计 + 评审** |
+| A-10 | Kernel 内无业务逻辑（无死亡/世界重置/敌人/掉落/PvP/存档机制） | **是**：判据落在 `tools/preci/check_kernel_scope.py`（T-006 落地，`01-kernel.md` §5 指派的），接进 preci 与 CI。⚠️ 它是**启发式**，不是证明 —— 换个名字实现同一件事查不出来，因此与人工评审并存 |
 | A-11 | 不得出现「Gate 第 9 项已满足」的说法 | **是**（代码与文档均无此说法） |
 
 ---
@@ -294,8 +294,11 @@ T-012 的「禁用非核心模块后自检退出码 0」在框架期就恒真 �
 | `src/kernel/include/bbcoop/kernel/self_test.h` + `src/self_test.cpp` | 自检 JSON 渲染（含 `source` / `unavailable_reason`） |
 | `src/kernel/host/main.cpp` | `bloodcoop-host`：`--self-test` / `--help` / `--version` + 退出码 0/1/2/3 |
 | `tests/fixtures/fixture_modules.h` | 夹具模块 + **`IAuxLiveness` 假实现**（07 §1.6 要求） |
-| `tests/unit/kernel/test_kernel.cpp` | 12 个用例（112 项检查） |
-| `tests/unit/test_framework.h` | 断言框架上移一层：两个套件共用一份 |
+| `tests/unit/test_framework.h` | 断言框架 + `finish()`：多个套件共用一份 |
+| `tests/unit/kernel/{load,fault_isolation,circuit_breaker,health_aggregation}_test.cpp` | **T-006**：卡要求的 4 个单元测试（168 项检查），各自一个 ctest 条目 |
+| `tests/unit/kernel/host_services_test.cpp` | **T-006**：事件总线与日志（卡的四项之外，§3.6 原则 1 里的另外两项职责） |
+| `tests/integration/CMakeLists.txt` | 宿主自检那条集成断言 |
+| `tools/preci/check_kernel_scope.py` + `tests/test_kernel_scope.py` | **T-006**：A-10 的判据（Kernel 边界检查）+ 13 条负例矩阵 |
 
 来源：草案分支 `wip/kernel-draft`（`82bfd7f`）**改造复用**，按 `07-kernel-seam.md` §3 的
 8 条改动逐条落实。没有把草稿的 `CMakeLists.txt`（`bbcoop_add_module()` + 隔离断言）、
@@ -314,3 +317,5 @@ T-012 的「禁用非核心模块后自检退出码 0」在框架期就恒真 �
 | 删掉 `KernelPolicy::autoRecovery` 死字段 | 声明了却没有任何代码读它 —— 比没有这个开关更糟 |
 | **新增**：`watch()` 注册通道关闭回调 | 负例⑥实测发现：不注册的话 Kernel 只能靠别的路径知道辅助进程死了，与 07 §1.2① 「死亡由操作系统通知」冲突 |
 | **新增**：「标不可用」的幂等性用 `unavailableMarks` 计数 | 幂等是 07 §1.3 规则 2 的要求，必须有可证伪的计数 |
+| **T-006 拆分**：一个 `test_kernel.cpp`（112 项）拆成 5 个套件（168 项） | 卡要求「4 个单元测试」，装在一个文件里数不出来；拆分时补上了**加载路径**漏掉的 5 条分支，所以检查数反而涨了 56 项 |
+| **T-006 新增**：`addModule` 的 `id()` 指针有效期契约 | 写 load_test 的「表满」用例时踩到：Kernel 只存指针不复制字符串，而测试把 id 放在循环的栈缓冲上 → 32 个模块全被判成重复 ID。这是接口层没写明的约定，已写进 `kernel.h` |
