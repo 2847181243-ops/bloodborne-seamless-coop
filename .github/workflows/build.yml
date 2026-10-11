@@ -91,6 +91,41 @@ jobs:
         if: needs.detect.outputs.has_cmake == 'true'
         run: cmake --build build --config Release --parallel
 
+      # ── 测试 ────────────────────────────────────────────────────────────────
+      #
+      # 为什么放在**已经必需**的构建门禁里，而不是新开一个 job：
+      #   1) 新增必需检查要改规则集，而规则集有「必需检查必须在过去 7 天内成功运行过」
+      #      的限制 —— 新 job 第一次上线时会让所有 PR 卡 Pending；
+      #   2) 这个 job 的名字是必需检查的字符串契约，**改名等于静默破坏规则集**。
+      #      所以：不改名，往里加测试。
+      #
+      # 为什么必须先核对测试条数：`add_test()` 写在 `enable_testing()` 之前的子目录里
+      # 会被 CMake **静默丢弃** —— 实测踩过：宿主自检那条断言压根没进测试表，
+      # 而 ctest 照样报「100% tests passed」。那就是「检查悄悄不跑了」，
+      # 比没有检查更糟。这里把「声明几条」与「注册几条」对起来。
+      #
+      # 用 bash 而不是 pwsh：仓库里所有 run body 都走 bash，preci 的语法检查
+      # （tools/preci/tests/wf_syntax.py）也只按 shell 解析这些代码块 ——
+      # 写 pwsh 会让它按 bash 解析然后报假错。
+      - name: 跑测试（ctest）
+        if: needs.detect.outputs.has_cmake == 'true'
+        shell: bash
+        run: |
+          set -uo pipefail
+          declared=$(grep -rE '^[[:space:]]*add_test\(' src tests --include=CMakeLists.txt \
+                     | wc -l | tr -d ' ')
+          listed=$(ctest --test-dir build -C Release -N 2>&1 | grep -cE 'Test #[0-9]+' || true)
+          echo "add_test 声明 ${declared} 条；ctest 注册 ${listed} 条"
+          if [ "${declared}" -eq 0 ]; then
+            echo "::error::一条测试都没声明 —— 测试门禁是空的（任务书 §41.3 第 1 项：单元测试）"
+            exit 1
+          fi
+          if [ "${listed}" -ne "${declared}" ]; then
+            echo "::error::声明 ${declared} 条但只注册 ${listed} 条：有测试被静默丢弃。常见原因是 add_test 写在 enable_testing() 之前的子目录里。"
+            exit 1
+          fi
+          ctest --test-dir build -C Release --output-on-failure
+
       - name: 上传产物
         if: needs.detect.outputs.has_cmake == 'true'
         uses: actions/upload-artifact@v4

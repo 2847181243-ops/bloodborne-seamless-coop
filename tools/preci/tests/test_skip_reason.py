@@ -55,7 +55,18 @@ print("=" * 68)
 # 实测：该用例在本地通过、在 Windows runner 上失败，就是这个原因。
 # **一个假设工具链残缺的测试，会在工具链完整的机器上坏掉。**
 # 所以先探测；没有可跳过项时如实说明该用例不适用，而不是伪造一个失败。
-_probe_rc, _probe_out = P.run_ps(["-File", PRECI, "-Stage", "1"], timeout=600)
+#
+# ── 为什么必须传 -Base HEAD（Issue #64）──────────────────────────────────
+#
+# 本套件验的是「跳过留痕」，与写入范围**无关**。但 preci 默认拿 origin/main 做三点 diff，
+# 而 develop 上有 main 没有的提交（docs/security/*、LICENSE 等）：在基于 develop 的
+# task/* 分支上，范围检查会把这些**早已存在**的文件算成 9 个越界文件并先失败，
+# 退出码变成 1 —— 与用例期望的 2 / 0 都不符。那是**误报**，不是真缺陷。
+# 传 `-Base HEAD` 让「本次改动」为空，把范围检查隔离掉，用例只测它自己要测的东西。
+# 这样这套件在本地与 CI 上行为一致，不再依赖 runner 上有没有 origin/main。
+BASE_ARGS = ["-Base", "HEAD"]
+
+_probe_rc, _probe_out = P.run_ps(["-File", PRECI, "-Stage", "1"] + BASE_ARGS, timeout=600)
 HAS_SKIPS = "[跳过" in (_probe_out or "")
 
 _last_out = ""
@@ -68,7 +79,7 @@ for name, extra, expect in CASES:
         continue
     if os.path.exists(TRACE):
         os.remove(TRACE)
-    rc, out = P.run_ps(["-File", PRECI, "-Stage", "1"] + extra, timeout=600)
+    rc, out = P.run_ps(["-File", PRECI, "-Stage", "1"] + BASE_ARGS + extra, timeout=600)
     _last_out = out or ""
     if rc is None:
         print(f"  [跳过] {out}")
