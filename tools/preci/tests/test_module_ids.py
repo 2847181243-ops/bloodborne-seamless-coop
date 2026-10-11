@@ -79,7 +79,7 @@ CASES = [
       b'constexpr const char* kModuleId = "mod.pvp_ranked";\n'
       b"bbcoop::IModule* bbcoop_create_mod_pvp_ranked() noexcept { return nullptr; }\n"}, 1),
     ("任务书里找不到 §3.6 的表",
-     {**REAL, cmi.TASKBOOK: b"# 没有表的任务书\n"}, 1),
+     {**REAL, cmi.TASKBOOK: "# 没有表的任务书\n".encode("utf-8")}, 1),
 
     # ── 假阳性防线：注释里提到模块名不算违规 ────────────────────────────────
     ("注释里提到别的模块 ID（不属于本模块的 ID 声明）",
