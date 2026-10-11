@@ -77,6 +77,15 @@ fix/quotepath-ci-gate
 
 **不要**"只在 develop 修好再一起进 main" —— 那会让 `main` 在一段时间里带着已知缺陷。
 
+**`sync/<topic>` 分支的正确基座（2026-10 实测）**：基于 `develop` 切出，再把树重置为 `main`
+（`git read-tree -u --reset origin/main` 后提交），使两件事同时成立：
+
+1. 门禁判据：树与 `origin/main` 完全一致（`git diff --quiet origin/main HEAD`）；
+2. 可干净合并进 `develop`：从 `main` 直接切出的分支会在 `develop` 有独立历史时冲突
+   （实测 `mergeable_state=dirty`，见 Issue #50）。
+
+不要直接改 `develop`，也不要用 force push 修分支。
+
 ### 层间串行约束（不得跳过）
 
 ```text

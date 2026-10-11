@@ -121,7 +121,9 @@ jobs:
               ;;
           esac
 
-          if [[ -z "${SCOPE[$AGENT]:-}" ]]; then
+          # sync/* 不走范围表：它的前提是"树 == origin/main"，由下面的同步分支段验证。
+          # 这里必须先放行 sync，否则上面的空范围检查会在到达同步段之前把它判成"未知范围标识"。
+          if [[ "$AGENT" != "sync" && -z "${SCOPE[$AGENT]:-}" ]]; then
             echo "::error::未知范围标识 '$AGENT'。合法值为：a0 a1 a2 a3 a4 b1 b2 b3 b4 c1 c2 c3 c4 lead task sync"
             exit 1
           fi
