@@ -60,7 +60,9 @@ jobs:
             #    本行是补一致性，不是放宽：门禁仍只允许声明的所有者写。
             #    只加文档目录；src/kernel/ 与 src/interfaces/ **故意不加** ——
             #    那两处要走 task/* 分支，避免绕过冻结接口的变更流程（任务书 §52-c）。
-            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ docs/standards/ docs/references/ docs/architecture/ docs/modules/ .github/ .dsh/ tools/preci/ tools/bbcoop.py tools/setup-toolchain.ps1 README.md CONTRIBUTING.md SECURITY.md MAINTAINERS.md AI_POLICY.md MIGRATION.md REFACTOR-REPORT.md docs/README.md bloodborne.markdown .gitignore .gitattributes .editorconfig CMakeLists.txt .clang-format .clang-tidy"
+            # LICENSE 加入 lead 范围：Human Owner 2026-10 批准（许可落地，见
+            # docs/standards/许可与合规.md）。
+            [lead]="docs/interfaces/ docs/integration/ docs/conflict_log/ docs/standards/ docs/references/ docs/architecture/ docs/modules/ .github/ .dsh/ tools/preci/ tools/bbcoop.py tools/setup-toolchain.ps1 README.md CONTRIBUTING.md SECURITY.md MAINTAINERS.md AI_POLICY.md MIGRATION.md REFACTOR-REPORT.md docs/README.md bloodborne.markdown .gitignore .gitattributes .editorconfig CMakeLists.txt .clang-format .clang-tidy LICENSE"
             # v2.0 的任务卡范围（迁移期）。
             # ⚠️ 这是一份**联合范围**，不是最终的模块所有权划分。
             # v2.0 §48-c 要求「一个模块 = 一个所有权单元」
