@@ -318,8 +318,11 @@ static int probe_memory_read(const BbGameHost *host) {
     memcpy(head, host->image, n);
     hex16(head, n, hex, sizeof(hex));
     probe_log("mem.read", "offset=0 size=%zu value=%s", n, hex);
-    probe_log("image.elf_magic",
-              "value=%s", (n >= 4 && head[0] == 0x7f && head[1] == 'E' && head[2] == 'L' && head[3] == 'F') ? "ok" : "unexpected");
+    {
+        int elf_ok = (n >= 4 && head[0] == 0x7f && head[1] == 'E' &&
+                      head[2] == 'L' && head[3] == 'F');
+        probe_log("image.elf_magic", "value=%s", elf_ok ? "ok" : "unexpected");
+    }
     /* Relocations/patches already ran: the pinned image hash cannot be checked here. */
     probe_log("image.hash_check", "skipped=1 reason=image_is_post_relocation_post_patch");
     return 1;
@@ -475,7 +478,8 @@ static int probe_setup_hook(const BbGameHost *host) {
         int result = host->install_hook(offset, size, target);
         if (result != 0) {
             probe_log("hook.install.fail",
-                      "result=%d reason=loader_rejected (needs size>=14, target!=NULL, whole range in one executable segment)",
+                      "result=%d reason=loader_rejected "
+                      "(needs size>=14, target!=NULL, whole range in one executable segment)",
                       result);
             return 0;
         }
