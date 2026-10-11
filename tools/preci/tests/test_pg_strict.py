@@ -169,6 +169,12 @@ CASES = [
      body(sec=SEC[:3] + [s.replace("[x]", "[ ]") for s in SEC[3:]]), "machine", "ok", 1, "未全部勾选"),
     ("machine: no module checked", ["docs/x.md"],
      body().replace("- [x] Docs / CI / Config", "- [ ] Docs / CI / Config"), "machine", "ok", 1, "修改了哪个模块"),
+    # task/T-xxx 分支：Issue 标题必须含同一个 T-xxx（此前只测了正例被打红的现场，
+    # 没有覆盖这条绑定本身）
+    ("desc: task branch + matching T-id", ["docs/x.md"], body(), "desc", "ok", 0,
+     "任务号一致", {"GITHUB_HEAD_REF": "task/T-022-x", "GH_SHIM_TITLE": "[T-022] stub issue"}),
+    ("desc: task branch + mismatched issue title", ["docs/x.md"], body(), "desc", "ok", 1,
+     "没有 'T-022'", {"GITHUB_HEAD_REF": "task/T-022-x"}),
 ]
 
 def writecase(work, files, cred):
@@ -209,6 +215,10 @@ for case in CASES:
             'export LC_ALL=C.UTF-8\nexport PATH="%s:$PATH"\n' % SHIM
             + STEP[step] + "\n")
         env = dict(os.environ)
+        # GitHub Actions 会给 job 注入 GITHUB_HEAD_REF。夹具必须清掉它，
+        # 否则在 task/T-xxx 分支上跑时，pr-guard 的「任务号一致」检查会被
+        # 宿主环境误触发，正例被打红（实测：PR #59 的 Windows 回归矩阵）。
+        env.pop("GITHUB_HEAD_REF", None)
         env.update({"BODY": b, "BASE_REF": "main", "PRNUMBER": "9",
                     "GH_SHIM_MODE": mode, "GITHUB_REPOSITORY": "o/r",
                     "GITHUB_TOKEN": "x"})
@@ -235,6 +245,7 @@ try:
     open(sh, "w", encoding="utf-8", newline="\n").write(
         'export PATH="%s:$PATH"\n' % SHIM + STEP["machine"] + "\n")
     env = dict(os.environ)
+    env.pop("GITHUB_HEAD_REF", None)
     env.update({"BODY": body(), "BASE_REF": "main", "PRNUMBER": "9",
                 "GH_SHIM_MODE": "ok", "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "x"})
     r = subprocess.run([BASH, "-e", "-o", "pipefail", "step.sh"], cwd=work,
