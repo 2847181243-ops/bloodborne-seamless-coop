@@ -146,7 +146,8 @@ class IAuxLiveness {
 ```
 
 - `requestTerminate` 非阻塞、幂等；Kernel 不假设进程立刻消失；
-- 接口放 `src/kernel/` 的内部头文件（不进 `src/interfaces/`，冻结接口不需要改）。
+- 接口放 `src/ipc/include/bbcoop/ipc/aux_liveness.h`（不进 `src/interfaces/` 冻结层）。
+  依赖方向保持单向 `kernel -> ipc`，避免 ipc 反向依赖 kernel 造成 CMake 环。
 
 ## 8. 验收（可判定）
 
@@ -179,3 +180,20 @@ class IAuxLiveness {
 - `docs/architecture/01-kernel.md`（K-7 / K-10 裁决）
 - Issue #35（T-021 卡）、`docs/standards/项目复盘与风险清单.md`（M0）、`docs/standards/许可与合规.md`
 - 任务书 §3.5（性能预算）、§3.6、§3.7、§41.3 全局 Gate 第 9 项
+
+## 11. 实现进度（随 `task/T-021-ipc` 更新）
+
+已落地（本分支；本地用仓库自带 zig 构建并运行，181 项检查通过）：
+
+| 文件 | 内容 |
+|---|---|
+| `src/ipc/include/bbcoop/ipc/protocol.h` | 协议版本、N/宽限期暂定常量、`ChannelId`、状态/原因/耐久性枚举、`RecordHeader` |
+| `src/ipc/include/bbcoop/ipc/ring_buffer.h` + `.cpp` | SPSC 环形缓冲：满时丢并计数、不阻塞、不分配 |
+| `src/ipc/include/bbcoop/ipc/aux_liveness.h` | Kernel 与 IPC 的 `IAuxLiveness` |
+| `src/ipc/include/bbcoop/ipc/liveness_registry.h` + `.cpp` | 通道关闭幂等、终止请求幂等、心跳本地读 |
+| `src/ipc/include/bbcoop/ipc/supervisor.h` + `.cpp` | 重启监督：指数退避 + 封顶 + 抖动 + 稳定窗口重置 + 启动上限 |
+| `src/ipc/include/bbcoop/ipc/log_sink.h` + `.cpp` | 日志队列：诊断可丢并计数、审计不静默丢 |
+| `tests/unit/ipc/` | 单元测试（181 项检查） |
+
+**未落地**（继续在本分支追加）：真实共享内存映射与控制通道、`ITransport`/`ISession` 的代理与桩、
+进程创建/作业对象平台适配、端到端 `--self-test` 接线。
