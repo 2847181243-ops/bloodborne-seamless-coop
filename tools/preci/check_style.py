@@ -385,6 +385,32 @@ def check_constraint_severity(tree, errors, warns):
                       f"级别是分类，理由才是判据。"))
 
 
+def _load_sibling(module_name):
+    """按**路径**加载同目录的检查器模块。
+
+    不用裸 `import <name>`：那只在「把本文件当脚本、sys.path[0]=tools/preci」时成立；
+    套件（test_build_std.py 之类）是用 importlib 按路径加载本文件的，
+    那时 tools/preci 不在 sys.path 上，裸 import 会 ModuleNotFoundError。
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_file_location(
+        module_name, os.path.join(here, module_name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_module_ids(tree, errors):
+    """模块身份必须与任务书 §3.6 注册表一致（T-007）。
+
+    判据在 tools/preci/check_module_ids.py 里：§3.6 表里的每个 ID 都要有骨架、
+    源码里的 ID 逐字一致、创建符号命名符合契约、不得发明表里没有的模块。
+    17 个 ID 靠人眼核对不可靠，而错一个字没有任何运行时症状 ——
+    模块会「存在但谁也找不到它」。
+    """
+    _load_sibling("check_module_ids").check(tree, errors)
+
+
 def check_kernel_scope(tree, errors):
     """Kernel 不得实现任何游戏机制（任务书 §3.6 原则 1）。
 
@@ -394,15 +420,7 @@ def check_kernel_scope(tree, errors):
     这里只是把它挂进 preci 这份清单，好让它在 push 前就跑到 ——
     否则那条验收还是「人工审计」，而人工审计不会每次都做。
     """
-    # 按**路径**加载同目录的模块，而不是裸 `import check_kernel_scope`：
-    # 后者只在「把本文件当脚本、sys.path[0]=tools/preci」时成立；
-    # 而套件（test_build_std.py 之类）是用 importlib 按路径加载本文件的，
-    # 那时 tools/preci 不在 sys.path 上，裸 import 会 ModuleNotFoundError。
-    here = os.path.dirname(os.path.abspath(__file__))
-    cks_path = os.path.join(here, "check_kernel_scope.py")
-    spec = importlib.util.spec_from_file_location("check_kernel_scope", cks_path)
-    cks = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(cks)
+    cks = _load_sibling("check_kernel_scope")
 
     files = []
     for name in sorted(tree):
@@ -522,6 +540,7 @@ def main():
     check_constraint_severity(tree, errors, warns)
     check_re_docs(tree, errors, warns)
     check_kernel_scope(tree, errors)
+    check_module_ids(tree, errors)
 
     if args.json:
         print(json.dumps({

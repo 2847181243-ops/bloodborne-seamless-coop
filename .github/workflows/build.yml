@@ -114,7 +114,14 @@ jobs:
           set -uo pipefail
           declared=$(grep -rE '^[[:space:]]*add_test\(' src tests --include=CMakeLists.txt \
                      | wc -l | tr -d ' ')
-          listed=$(ctest --test-dir build -C Release -N 2>&1 | grep -cE 'Test #[0-9]+' || true)
+          # ⚠️ 计数用的正则必须容忍 CTest 的**编号对齐**：
+          #    测试数 ≤9 时它打印 `Test #1:`，≥10 时为了对齐两位数会打印 `Test  #1:`
+          #    （**两个空格**）。写成 'Test #[0-9]+' 会漏掉所有一位数编号 ——
+          #    实测 24 条测试只数出 15 条，于是这条断言在测试变多之后会**假失败**，
+          #    更要命的是它同时失去了「发现测试被静默丢弃」的能力。
+          #    写成 [[:space:]]+# 就与对齐无关了。
+          listed=$(ctest --test-dir build -C Release -N 2>&1 \
+                   | grep -cE '^[[:space:]]*Test[[:space:]]+#[0-9]+' || true)
           echo "add_test 声明 ${declared} 条；ctest 注册 ${listed} 条"
           if [ "${declared}" -eq 0 ]; then
             echo "::error::一条测试都没声明 —— 测试门禁是空的（任务书 §41.3 第 1 项：单元测试）"
