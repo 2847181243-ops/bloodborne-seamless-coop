@@ -17,6 +17,7 @@
 | REF-004 | [代码复查机制](prior-art-code-review.md) | 有效复查要素、机器可查门禁、反橡皮图章、AI 作者披露、变更后作废重审 | Issue #40、S0 方案 | 10 | 已采用（2026-10） | 2026-10 |
 | REF-005 | [多人协作与贡献者治理](prior-art-collaboration.md) | 权限分层、角色梯队、复查负载、准入培养、合并自动化、反模式 | Issue #40、S1~S4 | 8 | 已采用（2026-10） | 2026-10 |
 | REF-006 | [build_in_harmonyos 评审与协作增量](prior-art-harmonyos-review-collab.md) | 评审清单注入、审计阻断分级、意见闭环、反馈变规则、编号单源 | Issue #40、S0 方案 | 1 | 已采用（2026-10） | 2026-10 |
+| REF-007 | [bbport 运行时侦察](prior-art-bbport-runtime.md) | 运行时谱系、原生库插件点 `BB_GAME_LIB` / `install_hook`、文件与 XML 补丁限制、GPL-2.0 影响、R-2 进入条件 | M0-R1（#44）、R-2 | 4 | 已采用（2026-10） | 2026-10 |
 
 ## 待建条目（已登记、尚未检索）
 

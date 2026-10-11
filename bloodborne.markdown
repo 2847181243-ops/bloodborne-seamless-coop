@@ -1508,10 +1508,12 @@ Phase 15  Regression / Stability
 
 | ID | 任务 | 产出 | 验收 / kill criteria |
 |---|---|---|---|
-| M0-R1 | 环境与运行时侦察 | `docs/re/bbport-runtime.md` | 给出目标 fork、Hook 机制与许可结论；无法确认的如实标「未核实」 |
+| M0-R1 | 环境与运行时侦察 | `docs/references/prior-art-bbport-runtime.md`（REF-007） | 给出目标 fork、Hook 机制与许可结论；无法确认的如实标「未核实」 |
 | M0-R2 | 最小 Hook / 内存读写证明 | 可运行的测试库 + 日志 + 复现命令 | 加载成功、稳定存活、能读到一处游戏状态；两周内做不到则触发重估 |
 | M0-R3 | 双进程 IPC 实测 | 延迟 / 丢事件报告 | 与 `06` §4 的量级对照，给出实测数字 |
 | M0-R4 | 双客户端最小同步 | 可复现演示 + 日志（游戏侧可先桩） | 2 客户端位置 + HP 同步 |
+
+> `docs/re/` 的写入当前受本地预检的跨所有权检查阻断（Issue #45）；修复前，M0 的运行时侦察产出放 `docs/references/`，游戏内 RE 事实待修复后入 `docs/re/`。
 
 #### 每个任务卡的标准工作流
 
